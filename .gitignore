@@ -1,0 +1,14 @@
+# Build artifacts
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+*.swp
+*.swo
+
+# Node modules (if added later)
+node_modules/

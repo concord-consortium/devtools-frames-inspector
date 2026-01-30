@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "PostMessage DevTools",
+  "version": "1.0.0",
+  "description": "A Chrome DevTools extension that exposes postMessage messages similar to the Network tab",
+  "devtools_page": "devtools.html",
+  "permissions": [],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
