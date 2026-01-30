@@ -4,7 +4,10 @@
   "version": "1.0.0",
   "description": "A Chrome DevTools extension that exposes postMessage messages similar to the Network tab",
   "devtools_page": "devtools.html",
-  "permissions": [],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["webNavigation"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
