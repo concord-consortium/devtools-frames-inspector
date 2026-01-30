@@ -541,7 +541,6 @@ function connect() {
   tabId = chrome.devtools.inspectedWindow.tabId;
 
   port = chrome.runtime.connect({ name: 'postmessage-panel' });
-
   port.postMessage({ type: 'init', tabId });
 
   port.onMessage.addListener((msg) => {

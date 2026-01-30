@@ -11,8 +11,6 @@ const preserveLogPrefs = new Map();
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'postmessage-panel') return;
 
-  const tabId = port.sender?.tab?.id;
-
   // Panel sends its tab ID in the first message
   port.onMessage.addListener((msg) => {
     if (msg.type === 'init') {

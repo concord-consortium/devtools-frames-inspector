@@ -16,14 +16,10 @@
 
   // Listen for messages from the injected script
   window.addEventListener(EVENT_NAME, (event) => {
-    try {
-      chrome.runtime.sendMessage({
-        type: 'postmessage-captured',
-        payload: event.detail
-      });
-    } catch (e) {
-      // Extension context may be invalidated, ignore
-    }
+    chrome.runtime.sendMessage({
+      type: 'postmessage-captured',
+      payload: event.detail
+    });
   });
 
   // Inject immediately
