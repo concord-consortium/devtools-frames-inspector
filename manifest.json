@@ -7,7 +7,7 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["webNavigation"],
+  "permissions": ["webNavigation", "storage"],
   "web_accessible_resources": [
     {
       "resources": ["injected.js"],
