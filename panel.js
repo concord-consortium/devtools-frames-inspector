@@ -38,6 +38,7 @@ const columnMenu = document.getElementById('column-menu');
 const cellMenu = document.getElementById('cell-menu');
 const filterByValue = document.getElementById('filter-by-value');
 const resizeHandle = document.getElementById('resize-handle');
+const closeDetailBtn = document.getElementById('close-detail-btn');
 
 // Initialize visible columns from defaults or storage
 function initColumns() {
@@ -93,6 +94,27 @@ function getCellValue(msg, colId) {
   }
 }
 
+// Column widths state (persisted)
+let columnWidths = {};
+
+// Initialize column widths from defaults
+function initColumnWidths() {
+  ALL_COLUMNS.forEach(col => {
+    columnWidths[col.id] = col.width;
+  });
+
+  chrome.storage.local.get(['columnWidths'], (result) => {
+    if (result.columnWidths) {
+      columnWidths = { ...columnWidths, ...result.columnWidths };
+    }
+  });
+}
+
+// Save column widths
+function saveColumnWidths() {
+  chrome.storage.local.set({ columnWidths });
+}
+
 // Render table header
 function renderHeader() {
   headerRow.innerHTML = '';
@@ -103,18 +125,70 @@ function renderHeader() {
     const th = document.createElement('th');
     th.textContent = col.label;
     th.dataset.column = col.id;
-    th.style.width = col.width + 'px';
+    th.style.width = (columnWidths[col.id] || col.width) + 'px';
 
     if (sortColumn === col.id) {
       th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
     }
 
-    th.addEventListener('click', () => handleSort(col.id));
+    th.addEventListener('click', (e) => {
+      // Don't sort if clicking on resize handle
+      if (!e.target.classList.contains('column-resize-handle')) {
+        handleSort(col.id);
+      }
+    });
     th.addEventListener('contextmenu', (e) => showColumnMenu(e));
+
+    // Add resize handle
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'column-resize-handle';
+    resizeHandle.addEventListener('mousedown', (e) => startColumnResize(e, col.id, th));
+    th.appendChild(resizeHandle);
 
     headerRow.appendChild(th);
   });
 }
+
+// Column resize state
+let resizingColumn = null;
+let resizingTh = null;
+let resizeStartX = 0;
+let resizeStartWidth = 0;
+
+function startColumnResize(e, colId, th) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  resizingColumn = colId;
+  resizingTh = th;
+  resizeStartX = e.clientX;
+  resizeStartWidth = th.offsetWidth;
+
+  document.body.style.cursor = 'col-resize';
+  e.target.classList.add('resizing');
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!resizingColumn) return;
+
+  const diff = e.clientX - resizeStartX;
+  const newWidth = Math.max(40, resizeStartWidth + diff);
+
+  resizingTh.style.width = newWidth + 'px';
+  columnWidths[resizingColumn] = newWidth;
+});
+
+document.addEventListener('mouseup', () => {
+  if (resizingColumn) {
+    document.body.style.cursor = '';
+    document.querySelectorAll('.column-resize-handle.resizing').forEach(el => {
+      el.classList.remove('resizing');
+    });
+    saveColumnWidths();
+    resizingColumn = null;
+    resizingTh = null;
+  }
+});
 
 // Render messages
 function renderMessages() {
@@ -508,17 +582,17 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// Resize handle
-let isResizing = false;
+// Detail pane resize handle
+let isResizingPane = false;
 
 resizeHandle.addEventListener('mousedown', (e) => {
-  isResizing = true;
+  isResizingPane = true;
   document.body.style.cursor = 'col-resize';
   e.preventDefault();
 });
 
 document.addEventListener('mousemove', (e) => {
-  if (!isResizing) return;
+  if (!isResizingPane) return;
 
   const containerWidth = document.querySelector('.main-content').offsetWidth;
   const newDetailWidth = containerWidth - e.clientX;
@@ -528,8 +602,19 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('mouseup', () => {
-  isResizing = false;
-  document.body.style.cursor = '';
+  if (isResizingPane) {
+    isResizingPane = false;
+    document.body.style.cursor = '';
+  }
+});
+
+// Close detail button
+closeDetailBtn.addEventListener('click', () => {
+  detailPane.classList.add('hidden');
+  selectedMessageId = null;
+  messageTbody.querySelectorAll('tr.selected').forEach(tr => {
+    tr.classList.remove('selected');
+  });
 });
 
 // Connect to background script
@@ -558,6 +643,7 @@ function connect() {
 }
 
 // Initialize
+initColumnWidths();
 initColumns();
 detailPane.classList.add('hidden');
 connect();

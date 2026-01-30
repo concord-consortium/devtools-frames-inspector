@@ -101,10 +101,27 @@ body {
   position: sticky;
   top: 0;
   z-index: 1;
+  position: relative;
 }
 
 #message-table th:hover {
   background: #e8eaed;
+}
+
+/* Column resize handle */
+.column-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.column-resize-handle:hover,
+.column-resize-handle.resizing {
+  background: #1a73e8;
 }
 
 #message-table tbody tr {
@@ -159,6 +176,26 @@ body {
   border-bottom: 1px solid #cacdd1;
   background: #f3f3f3;
   flex-shrink: 0;
+  align-items: center;
+}
+
+.close-detail-btn {
+  margin-left: auto;
+  margin-right: 4px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  font-size: 18px;
+  color: #5f6368;
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.close-detail-btn:hover {
+  background: #e8eaed;
+  color: #303942;
 }
 
 .tab-btn {
