@@ -14,14 +14,27 @@ A Chrome DevTools extension that inspects postMessage communication between ifra
 ## Architecture
 
 ```
-Frame A (content.js) ──┐
-Frame B (content.js) ──┼──► Service Worker ──► DevTools Panel
-Frame C (content.js) ──┘
+                    Page Context                     Isolated World
+                    ────────────                     ──────────────
+Frame A  ┌─────────────────────┐   CustomEvent   ┌─────────────────┐
+         │  injected.js        │ ───────────────►│  content.js     │──┐
+         │  (wraps postMessage)│                 │  (event bridge) │  │
+         └─────────────────────┘                 └─────────────────┘  │
+                                                                      │
+Frame B  ┌─────────────────────┐   CustomEvent   ┌─────────────────┐  │
+         │  injected.js        │ ───────────────►│  content.js     │──┼──► Service Worker ──► DevTools Panel
+         └─────────────────────┘                 └─────────────────┘  │
+                                                                      │
+Frame C  ┌─────────────────────┐   CustomEvent   ┌─────────────────┐  │
+         │  injected.js        │ ───────────────►│  content.js     │──┘
+         └─────────────────────┘                 └─────────────────┘
 ```
 
 **Components:**
 
-- **Content Script (`content.js`)** - Injects into all frames. Intercepts outgoing `postMessage()` calls by wrapping `window.postMessage`, and listens for incoming `message` events. Collects frame metadata (URL, origin, title). Sends captured data to the service worker.
+- **Injected Script (`injected.js`)** - Injected into the page's main JavaScript context. Intercepts outgoing `postMessage()` calls by wrapping `window.postMessage`, and listens for incoming `message` events. Dispatches CustomEvents to communicate with the content script.
+
+- **Content Script (`content.js`)** - Runs in Chrome's isolated world. Injects `injected.js` into the page, listens for CustomEvents from the injected script, and forwards captured messages to the service worker via `chrome.runtime.sendMessage`.
 
 - **Service Worker (`background.js`)** - Bridges communication between content scripts and DevTools panel. Routes messages by tab ID. Handles "clear on navigation" by listening to `chrome.webNavigation` events.
 
@@ -142,9 +155,17 @@ Frame C (content.js) ──┘
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["webNavigation"]
+  "permissions": ["webNavigation"],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
 ```
+
+Note: `web_accessible_resources` is required so that the content script can inject `injected.js` into the page's main world via a `<script>` element.
 
 ## Deferred to v2
 
@@ -163,7 +184,8 @@ Frame C (content.js) ──┘
 ├── panel.html             # Panel UI structure
 ├── panel.css              # Panel styles
 ├── panel.js               # Panel logic (table, filtering, detail view)
-├── content.js             # Content script (postMessage interception)
+├── injected.js            # Injected into page context (postMessage interception)
+├── content.js             # Content script (event bridge to service worker)
 ├── background.js          # Service worker (message routing)
 └── icons/                 # Extension icons
 ```

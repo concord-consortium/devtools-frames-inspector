@@ -124,15 +124,35 @@ git commit -m "feat: add service worker for message routing"
 
 ## Task 2: Implement Content Script Message Interception
 
-**Files:**
-- Modify: `content.js`
+**Why two scripts?** Content scripts run in Chrome's "isolated world" - a separate JavaScript context from the page. Wrapping `window.postMessage` in a content script only affects the content script's context, not the page's. To intercept the page's postMessage calls, we must inject code into the page's main world.
 
-**Step 1: Implement content.js with postMessage interception**
+**Files:**
+- Modify: `manifest.json` (add web_accessible_resources)
+- Create: `injected.js` (runs in page context)
+- Modify: `content.js` (bridge to service worker)
+
+**Step 1: Update manifest.json to allow injected.js to be loaded**
+
+Add this to manifest.json:
+
+```json
+"web_accessible_resources": [
+  {
+    "resources": ["injected.js"],
+    "matches": ["<all_urls>"]
+  }
+]
+```
+
+**Step 2: Create injected.js (runs in page's main world)**
 
 ```javascript
-// Content script to intercept postMessage calls and message events
+// Injected into page context to intercept postMessage calls
+// Communicates with content script via CustomEvents
 
 (function() {
+  const EVENT_NAME = '__postmessage_devtools__';
+
   // Collect frame metadata
   function getFrameMetadata() {
     return {
@@ -175,16 +195,11 @@ git commit -m "feat: add service worker for message routing"
     return null;
   }
 
-  // Send captured message to background script
+  // Send captured message to content script via CustomEvent
   function sendCapturedMessage(capturedMessage) {
-    try {
-      chrome.runtime.sendMessage({
-        type: 'postmessage-captured',
-        payload: capturedMessage
-      });
-    } catch (e) {
-      // Extension context may be invalidated, ignore
-    }
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, {
+      detail: capturedMessage
+    }));
   }
 
   // Intercept outgoing postMessage calls
@@ -228,7 +243,43 @@ git commit -m "feat: add service worker for message routing"
 })();
 ```
 
-**Step 2: Test manually**
+**Step 3: Update content.js (bridge between injected script and service worker)**
+
+```javascript
+// Content script - bridges injected.js to the service worker
+// Runs in Chrome's isolated world, has access to chrome.runtime
+
+(function() {
+  const EVENT_NAME = '__postmessage_devtools__';
+
+  // Inject the script into the page's main world
+  function injectScript() {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('injected.js');
+    script.onload = function() {
+      this.remove();
+    };
+    (document.head || document.documentElement).appendChild(script);
+  }
+
+  // Listen for messages from the injected script
+  window.addEventListener(EVENT_NAME, (event) => {
+    try {
+      chrome.runtime.sendMessage({
+        type: 'postmessage-captured',
+        payload: event.detail
+      });
+    } catch (e) {
+      // Extension context may be invalidated, ignore
+    }
+  });
+
+  // Inject immediately
+  injectScript();
+})();
+```
+
+**Step 4: Test manually**
 
 1. Reload extension
 2. Open a page with iframes (or create a test page)
@@ -236,11 +287,11 @@ git commit -m "feat: add service worker for message routing"
 4. Run: `window.postMessage({ type: 'test', value: 123 }, '*')`
 5. Check service worker console shows the message was received
 
-**Step 3: Commit**
+**Step 5: Commit**
 
 ```bash
-git add content.js
-git commit -m "feat: implement postMessage interception in content script"
+git add manifest.json injected.js content.js
+git commit -m "feat: implement postMessage interception with page context injection"
 ```
 
 ---
