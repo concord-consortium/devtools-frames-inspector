@@ -24,6 +24,7 @@ let sortDirection = 'asc';
 let filterText = '';
 let preserveLog = false;
 let activeTab = 'data';
+let isRecording = true;
 
 // DOM elements
 const headerRow = document.getElementById('header-row');
@@ -39,6 +40,7 @@ const cellMenu = document.getElementById('cell-menu');
 const filterByValue = document.getElementById('filter-by-value');
 const resizeHandle = document.getElementById('resize-handle');
 const closeDetailBtn = document.getElementById('close-detail-btn');
+const recordBtn = document.getElementById('record-btn');
 
 // Initialize visible columns from defaults or storage
 function initColumns() {
@@ -546,6 +548,7 @@ filterByValue.addEventListener('click', () => {
 
 // Add a new message
 function addMessage(msg) {
+  if (!isRecording) return;
   messages.push(msg);
   applyFilterAndSort();
   renderMessages();
@@ -575,6 +578,13 @@ preserveLogCheckbox.addEventListener('change', (e) => {
   if (port) {
     port.postMessage({ type: 'preserveLog', tabId, value: preserveLog });
   }
+});
+
+// Record toggle
+recordBtn.addEventListener('click', () => {
+  isRecording = !isRecording;
+  recordBtn.classList.toggle('recording', isRecording);
+  recordBtn.title = isRecording ? 'Stop recording' : 'Record messages';
 });
 
 // Tab switching
