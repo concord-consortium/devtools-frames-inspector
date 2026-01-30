@@ -276,6 +276,34 @@ function getSortValue(msg, colId) {
   }
 }
 
+// Check if message matches a single filter term
+function matchesTerm(msg, term) {
+  // Check for field:value syntax
+  const colonIdx = term.indexOf(':');
+  if (colonIdx > 0) {
+    const field = term.substring(0, colonIdx);
+    const value = term.substring(colonIdx + 1);
+
+    switch (field) {
+      case 'type':
+        return (msg.messageType || '').toLowerCase() === value;
+      case 'origin':
+        return msg.self.origin.toLowerCase().includes(value);
+      case 'target':
+        return (msg.targetOrigin || '').toLowerCase().includes(value);
+      case 'source':
+        return (msg.sourceOrigin || '').toLowerCase().includes(value);
+      case 'dir':
+        return msg.direction === value;
+      default:
+        return false;
+    }
+  }
+
+  // General text search in data preview
+  return msg.dataPreview.toLowerCase().includes(term);
+}
+
 // Check if message matches filter
 function matchesFilter(msg, filter) {
   if (!filter) return true;
@@ -283,30 +311,11 @@ function matchesFilter(msg, filter) {
   const terms = filter.toLowerCase().split(/\s+/).filter(t => t);
 
   return terms.every(term => {
-    // Check for field:value syntax
-    const colonIdx = term.indexOf(':');
-    if (colonIdx > 0) {
-      const field = term.substring(0, colonIdx);
-      const value = term.substring(colonIdx + 1);
-
-      switch (field) {
-        case 'type':
-          return (msg.messageType || '').toLowerCase() === value;
-        case 'origin':
-          return msg.self.origin.toLowerCase().includes(value);
-        case 'target':
-          return (msg.targetOrigin || '').toLowerCase().includes(value);
-        case 'source':
-          return (msg.sourceOrigin || '').toLowerCase().includes(value);
-        case 'dir':
-          return msg.direction === value;
-        default:
-          return false;
-      }
+    // Check for negation prefix
+    if (term.startsWith('-') && term.length > 1) {
+      return !matchesTerm(msg, term.substring(1));
     }
-
-    // General text search in data preview
-    return msg.dataPreview.toLowerCase().includes(term);
+    return matchesTerm(msg, term);
   });
 }
 
