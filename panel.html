@@ -6,7 +6,56 @@
   <link rel="stylesheet" href="panel.css">
 </head>
 <body>
-  <div id="message-list"></div>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="filter-input" class="filter-input" placeholder="Filter (e.g., type:resize, origin:example.com)">
+    <button id="clear-btn" class="toolbar-btn" title="Clear">Clear</button>
+    <label class="preserve-log-label">
+      <input type="checkbox" id="preserve-log-checkbox">
+      Preserve log
+    </label>
+  </div>
+
+  <!-- Main content area -->
+  <div class="main-content">
+    <!-- Message table (left pane) -->
+    <div class="table-pane">
+      <table id="message-table">
+        <thead>
+          <tr id="header-row"></tr>
+        </thead>
+        <tbody id="message-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Resize handle -->
+    <div class="resize-handle" id="resize-handle"></div>
+
+    <!-- Detail panel (right pane) -->
+    <div class="detail-pane" id="detail-pane">
+      <div class="detail-tabs">
+        <button class="tab-btn active" data-tab="data">Data</button>
+        <button class="tab-btn" data-tab="context">Context</button>
+      </div>
+      <div class="tab-content" id="tab-content">
+        <div class="placeholder">Select a message to view details</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span id="message-count">0 messages</span>
+  </div>
+
+  <!-- Column selector context menu (hidden by default) -->
+  <div class="column-menu" id="column-menu"></div>
+
+  <!-- Cell context menu (hidden by default) -->
+  <div class="cell-menu" id="cell-menu">
+    <div class="menu-item" id="filter-by-value">Filter by this value</div>
+  </div>
+
   <script src="panel.js"></script>
 </body>
 </html>
