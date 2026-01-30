@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PostMessage Test Page</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    iframe { border: 1px solid #ccc; margin: 10px 0; }
+    button { margin: 5px; padding: 8px 16px; }
+    .controls { margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>PostMessage DevTools Test Page</h1>
+
+  <div class="controls">
+    <h3>Send from Main Page</h3>
+    <button onclick="sendToIframe('resize')">Send resize</button>
+    <button onclick="sendToIframe('init')">Send init</button>
+    <button onclick="sendToIframe('custom')">Send custom</button>
+    <button onclick="broadcast()">Broadcast to all</button>
+  </div>
+
+  <h3>Iframe 1</h3>
+  <iframe id="iframe1" src="iframe.html" width="400" height="100"></iframe>
+
+  <h3>Iframe 2</h3>
+  <iframe id="iframe2" src="iframe.html" width="400" height="100"></iframe>
+
+  <script>
+    function sendToIframe(type) {
+      const iframe = document.getElementById('iframe1');
+      iframe.contentWindow.postMessage({ type, value: Math.random(), from: 'main' }, '*');
+    }
+
+    function broadcast() {
+      window.postMessage({ type: 'broadcast', from: 'main' }, '*');
+    }
+
+    window.addEventListener('message', (e) => {
+      console.log('Main received:', e.data);
+    });
+  </script>
+</body>
+</html>

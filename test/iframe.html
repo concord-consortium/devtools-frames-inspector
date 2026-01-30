@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test Iframe</title>
+  <style>
+    body { font-family: sans-serif; padding: 10px; margin: 0; background: #f5f5f5; }
+    button { margin: 5px; padding: 4px 8px; }
+  </style>
+</head>
+<body>
+  <strong>Iframe</strong>
+  <button onclick="sendToParent('ready')">Send ready</button>
+  <button onclick="sendToParent('ack')">Send ack</button>
+
+  <script>
+    function sendToParent(type) {
+      parent.postMessage({ type, from: 'iframe', timestamp: Date.now() }, '*');
+    }
+
+    window.addEventListener('message', (e) => {
+      console.log('Iframe received:', e.data);
+      // Auto-respond with ack
+      if (e.data.type && e.data.type !== 'ack') {
+        setTimeout(() => sendToParent('ack'), 100);
+      }
+    });
+
+    // Send ready on load
+    sendToParent('ready');
+  </script>
+</body>
+</html>
