@@ -80,11 +80,23 @@ function formatSize(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+// Get direction icon based on sourceType
+function getDirectionIcon(sourceType) {
+  switch (sourceType) {
+    case 'parent': return '↘';  // From parent (top-left to bottom-right)
+    case 'top': return '↘';     // From top (same as parent)
+    case 'child': return '↖';   // From child (bottom-right to top-left)
+    case 'self': return '↻';    // From self (loop)
+    case 'opener': return '←';  // From opener (right to left)
+    default: return '?';
+  }
+}
+
 // Get cell value for a message and column
 function getCellValue(msg, colId) {
   switch (colId) {
     case 'timestamp': return formatTimestamp(msg.timestamp);
-    case 'direction': return msg.direction === 'sending' ? '→' : '←';
+    case 'direction': return getDirectionIcon(msg.sourceType);
     case 'selfUrl': return msg.self.url;
     case 'selfOrigin': return msg.self.origin;
     case 'selfTitle': return msg.self.documentTitle || '';
@@ -214,7 +226,7 @@ function renderMessages() {
       td.dataset.column = col.id;
 
       if (col.id === 'direction') {
-        td.classList.add(msg.direction === 'sending' ? 'dir-sending' : 'dir-receiving');
+        td.classList.add(`dir-${msg.sourceType || 'unknown'}`);
       }
 
       td.addEventListener('contextmenu', (e) => showCellMenu(e, msg, col.id));
@@ -296,9 +308,9 @@ function matchesTerm(msg, term) {
       case 'target':
         return (msg.targetOrigin || '').toLowerCase().includes(value);
       case 'source':
+        return (msg.sourceType || 'unknown') === value;
+      case 'from':
         return (msg.sourceOrigin || '').toLowerCase().includes(value);
-      case 'dir':
-        return msg.direction === value;
       default:
         return false;
     }
@@ -436,22 +448,16 @@ function renderJsonValue(value, key = null) {
 
 // Render Context tab
 function renderContextTab(msg) {
+  const sourceType = msg.sourceType || 'unknown';
   const rows = [
-    ['Direction', msg.direction === 'sending' ? 'Sending →' : 'Receiving ←'],
+    ['Source', `${getDirectionIcon(sourceType)} ${sourceType}`],
     ['Timestamp', new Date(msg.timestamp).toISOString()],
     ['Self URL', msg.self.url],
     ['Self Origin', msg.self.origin],
     ['Self Title', msg.self.documentTitle || '(none)'],
+    ['Source Origin', msg.sourceOrigin],
+    ['Size', formatSize(msg.dataSize)],
   ];
-
-  if (msg.direction === 'sending') {
-    rows.push(['Target Origin', msg.targetOrigin]);
-  } else {
-    rows.push(['Source Origin', msg.sourceOrigin]);
-    rows.push(['Source Type', msg.sourceType || 'unknown']);
-  }
-
-  rows.push(['Size', formatSize(msg.dataSize)]);
 
   const table = document.createElement('table');
   table.className = 'context-table';
@@ -534,10 +540,11 @@ filterByValue.addEventListener('click', () => {
       filterStr = `target:${msg.targetOrigin || ''}`;
       break;
     case 'sourceOrigin':
-      filterStr = `source:${msg.sourceOrigin || ''}`;
+      filterStr = `from:${msg.sourceOrigin || ''}`;
       break;
     case 'direction':
-      filterStr = `dir:${msg.direction}`;
+    case 'sourceType':
+      filterStr = `source:${msg.sourceType || 'unknown'}`;
       break;
     default:
       filterStr = getCellValue(msg, colId);

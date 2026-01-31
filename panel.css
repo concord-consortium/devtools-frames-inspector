@@ -209,13 +209,25 @@ body {
   background: #e3f2fd;
 }
 
-/* Direction arrows */
-.dir-sending {
-  color: #d93025;
+/* Direction icons by source type */
+.dir-parent, .dir-top {
+  color: #1a73e8;  /* Blue - from above */
 }
 
-.dir-receiving {
-  color: #1e8e3e;
+.dir-child {
+  color: #1e8e3e;  /* Green - from below */
+}
+
+.dir-self {
+  color: #f9ab00;  /* Yellow/Orange - self */
+}
+
+.dir-opener {
+  color: #9334e6;  /* Purple - from opener */
+}
+
+.dir-unknown {
+  color: #5f6368;  /* Gray - unknown */
 }
 
 /* Resize handle */

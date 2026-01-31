@@ -27,11 +27,11 @@ Message flow uses a two-script approach because content scripts can't directly i
 Page Context                    Isolated World                Service Worker      DevTools
 ─────────────                   ──────────────                ──────────────      ────────
 injected.js ──CustomEvent──►    content.js ──runtime.msg──►   background.js ──►   panel.js
-(wraps postMessage)             (event bridge)                (routes by tabId)   (UI)
+(message listener)              (event bridge)                (routes by tabId)   (UI)
 ```
 
 **Key files:**
-- `injected.js` - Injected into page's main world, wraps `window.postMessage` and listens for `message` events
+- `injected.js` - Injected into page's main world, listens for `message` events and identifies source type (parent, child, self, etc.)
 - `content.js` - Content script that receives CustomEvents from injected.js and forwards to service worker
 - `background.js` - Service worker that routes messages to appropriate DevTools panel by tab ID
 - `panel.js` - Panel UI logic: table rendering, filtering (`type:`, `origin:`, `dir:` prefixes), column customization, detail view
@@ -39,7 +39,8 @@ injected.js ──CustomEvent──►    content.js ──runtime.msg──► 
 ## Filter Syntax
 
 - `type:value` - Filter by `data.type`
-- `origin:value` - Filter by origin
-- `dir:sending` / `dir:receiving` - Filter by direction
+- `origin:value` - Filter by self origin
+- `source:parent` / `source:child` / `source:self` / `source:opener` / `source:top` - Filter by source type
+- `from:value` - Filter by source origin
 - `-term` - Exclude messages containing term
 - Plain text - Search in data preview
