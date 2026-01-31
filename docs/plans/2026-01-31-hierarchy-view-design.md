@@ -8,25 +8,26 @@ Add a Hierarchy view to the panel that shows a tree of frames on the page, allow
 
 ```
 ┌────────┬────────────────────────────────────────────────┐
-│        │ [View-specific toolbar/content]                │
-│  📋    │                                                │
-│ Messages│                                               │
-│        │   Main content area                            │
-│  🌲    │   (depends on selected view)                   │
-│ Hierarchy│                                              │
-│        ├────────────────────────┬───────────────────────┤
-│        │                        │ Detail pane           │
-│        │                        │                       │
-└────────┴────────────────────────┴───────────────────────┘
+│        │ [View-specific toolbar - spans full width]     │
+│  📋    ├──────────────────────────┬─────────────────────┤
+│ Messages│                         │                     │
+│        │                          │   Detail pane       │
+│  🌲    │   Table/list area        │   (right side)      │
+│ Hierarchy│                        │                     │
+│        │                          │                     │
+│        │                          │                     │
+└────────┴──────────────────────────┴─────────────────────┘
 ```
 
 **Sidebar:** ~100px wide, full height, always visible. Contains two items with icon + text label:
 - Messages (current view functionality)
 - Hierarchy (new view)
 
-**View content:** Each view manages its own toolbar area:
-- Messages view: Top bar (record, clear, preserve log) + filter bar + message table
-- Hierarchy view: Refresh button + frame tree-table
+**View content:** Each view manages its own content area including its own detail pane:
+- Messages view: Top bar + filter bar + message table + message detail pane (right)
+- Hierarchy view: Refresh button + frame tree-table + frame detail pane (right)
+
+**Detail panes are separate** - each view has its own detail pane on the right side, matching the current Messages view layout.
 
 **No status bar.**
 
@@ -113,6 +114,6 @@ Background merges content script responses with `webNavigation` data using `send
 ## Implementation Notes
 
 - Fetching is on-demand only (refresh button), not live-updating
-- `getDomPath()` helper already exists in `injected.js` from Phase 0 - can be reused or duplicated in content script
+- `getDomPath()` helper already exists in `injected.js` from Phase 0 - needs to be duplicated in content script (content script can't access injected.js functions)
 - View state persisted: remember which view was last selected
-- Detail pane can be shared between views or separate (simpler to have separate)
+- Each view has its own separate detail pane
