@@ -71,7 +71,7 @@
     const capturedMessage = {
       id: generateId(),
       timestamp: Date.now(),
-      self: getFrameMetadata(),
+      target: getFrameMetadata(),
       sourceOrigin: event.origin,
       sourceType: getSourceRelationship(event.source),
       data: event.data,

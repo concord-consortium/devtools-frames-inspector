@@ -4,10 +4,9 @@
 const ALL_COLUMNS = [
   { id: 'timestamp', label: 'Time', defaultVisible: true, width: 90 },
   { id: 'direction', label: 'Dir', defaultVisible: true, width: 40 },
-  { id: 'selfUrl', label: 'Self URL', defaultVisible: false, width: 200 },
-  { id: 'selfOrigin', label: 'Self Origin', defaultVisible: true, width: 150 },
-  { id: 'selfTitle', label: 'Self Title', defaultVisible: false, width: 150 },
-  { id: 'targetOrigin', label: 'Target Origin', defaultVisible: true, width: 120 },
+  { id: 'targetUrl', label: 'Target URL', defaultVisible: false, width: 200 },
+  { id: 'targetOrigin', label: 'Target Origin', defaultVisible: true, width: 150 },
+  { id: 'targetTitle', label: 'Target Title', defaultVisible: false, width: 150 },
   { id: 'sourceOrigin', label: 'Source Origin', defaultVisible: true, width: 120 },
   { id: 'sourceType', label: 'Source', defaultVisible: true, width: 70 },
   { id: 'messageType', label: 'Type', defaultVisible: true, width: 80 },
@@ -97,10 +96,9 @@ function getCellValue(msg, colId) {
   switch (colId) {
     case 'timestamp': return formatTimestamp(msg.timestamp);
     case 'direction': return getDirectionIcon(msg.sourceType);
-    case 'selfUrl': return msg.self.url;
-    case 'selfOrigin': return msg.self.origin;
-    case 'selfTitle': return msg.self.documentTitle || '';
-    case 'targetOrigin': return msg.targetOrigin || '';
+    case 'targetUrl': return msg.target.url;
+    case 'targetOrigin': return msg.target.origin;
+    case 'targetTitle': return msg.target.documentTitle || '';
     case 'sourceOrigin': return msg.sourceOrigin || '';
     case 'sourceType': return msg.sourceType || '';
     case 'messageType': return msg.messageType || '';
@@ -303,13 +301,11 @@ function matchesTerm(msg, term) {
     switch (field) {
       case 'type':
         return (msg.messageType || '').toLowerCase() === value;
-      case 'origin':
-        return msg.self.origin.toLowerCase().includes(value);
       case 'target':
-        return (msg.targetOrigin || '').toLowerCase().includes(value);
-      case 'source':
+        return msg.target.origin.toLowerCase().includes(value);
+      case 'sourcetype':
         return (msg.sourceType || 'unknown') === value;
-      case 'from':
+      case 'source':
         return (msg.sourceOrigin || '').toLowerCase().includes(value);
       default:
         return false;
@@ -452,9 +448,9 @@ function renderContextTab(msg) {
   const rows = [
     ['Source', `${getDirectionIcon(sourceType)} ${sourceType}`],
     ['Timestamp', new Date(msg.timestamp).toISOString()],
-    ['Self URL', msg.self.url],
-    ['Self Origin', msg.self.origin],
-    ['Self Title', msg.self.documentTitle || '(none)'],
+    ['Target URL', msg.target.url],
+    ['Target Origin', msg.target.origin],
+    ['Target Title', msg.target.documentTitle || '(none)'],
     ['Source Origin', msg.sourceOrigin],
     ['Size', formatSize(msg.dataSize)],
   ];
@@ -533,18 +529,15 @@ filterByValue.addEventListener('click', () => {
     case 'messageType':
       filterStr = `type:${msg.messageType || ''}`;
       break;
-    case 'selfOrigin':
-      filterStr = `origin:${msg.self.origin}`;
-      break;
     case 'targetOrigin':
-      filterStr = `target:${msg.targetOrigin || ''}`;
+      filterStr = `target:${msg.target.origin}`;
       break;
     case 'sourceOrigin':
-      filterStr = `from:${msg.sourceOrigin || ''}`;
+      filterStr = `source:${msg.sourceOrigin || ''}`;
       break;
     case 'direction':
     case 'sourceType':
-      filterStr = `source:${msg.sourceType || 'unknown'}`;
+      filterStr = `sourceType:${msg.sourceType || 'unknown'}`;
       break;
     default:
       filterStr = getCellValue(msg, colId);

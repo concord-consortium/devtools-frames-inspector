@@ -39,8 +39,8 @@ injected.js ──CustomEvent──►    content.js ──runtime.msg──► 
 ## Filter Syntax
 
 - `type:value` - Filter by `data.type`
-- `origin:value` - Filter by self origin
-- `source:parent` / `source:child` / `source:self` / `source:opener` / `source:top` - Filter by source type
-- `from:value` - Filter by source origin
+- `target:value` - Filter by target origin
+- `source:value` - Filter by source origin
+- `sourceType:parent` / `sourceType:child` / `sourceType:self` / `sourceType:opener` / `sourceType:top` - Filter by source type
 - `-term` - Exclude messages containing term
 - Plain text - Search in data preview
