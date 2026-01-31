@@ -36,6 +36,10 @@ injected.js ──CustomEvent──►    content.js ──runtime.msg──► 
 - `background.js` - Service worker that routes messages to appropriate DevTools panel by tab ID
 - `panel.js` - Panel UI logic: table rendering, filtering (`type:`, `origin:`, `dir:` prefixes), column customization, detail view
 
+## Design Constraints
+
+- **Cross-origin is the primary use case.** Don't add features that only work for same-origin iframes. If a feature can't work cross-origin, it's not worth adding.
+
 ## Filter Syntax
 
 - `type:value` - Filter by `data.type`

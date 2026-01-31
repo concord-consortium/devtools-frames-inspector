@@ -80,3 +80,7 @@ Content scripts run in Chrome's isolated world and cannot directly intercept pag
 1. **injected.js** - Injected into the page's main world to wrap `window.postMessage` and listen for `message` events
 2. **content.js** - Receives CustomEvents from injected.js and forwards them to the service worker
 3. **background.js** - Routes messages to the appropriate DevTools panel by tab ID
+
+## Documentation
+
+- [Frame Filtering Limitation](docs/frame-filtering-limitation.md) - Why per-frame filtering isn't currently possible and technical background for contributors
