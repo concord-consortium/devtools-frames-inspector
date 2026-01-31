@@ -4,13 +4,36 @@
 (function() {
   const EVENT_NAME = '__postmessage_devtools__';
 
-  // Collect frame metadata
-  function getFrameMetadata() {
+  // Collect target frame info (the frame receiving the message)
+  function getTargetInfo() {
     return {
       url: window.location.href,
       origin: window.location.origin,
       documentTitle: document.title || ''
     };
+  }
+
+  // Generate a CSS selector path for an element
+  function getDomPath(element) {
+    const parts = [];
+    while (element && element.nodeType === Node.ELEMENT_NODE) {
+      let selector = element.nodeName.toLowerCase();
+      if (element.id) {
+        selector += '#' + element.id;
+        parts.unshift(selector);
+        break; // id is unique, stop here
+      }
+      // Position among same-type siblings
+      let sibling = element;
+      let nth = 1;
+      while ((sibling = sibling.previousElementSibling)) {
+        if (sibling.nodeName === element.nodeName) nth++;
+      }
+      if (nth > 1) selector += ':nth-of-type(' + nth + ')';
+      parts.unshift(selector);
+      element = element.parentElement;
+    }
+    return parts.join(' > ');
   }
 
   // Generate unique ID
@@ -59,6 +82,34 @@
     return 'unknown';
   }
 
+  // Collect source info from a message event
+  function getSourceInfo(event) {
+    const sourceType = getSourceRelationship(event.source);
+
+    const source = {
+      type: sourceType,
+      origin: event.origin,
+      iframeSrc: null,
+      iframeId: null,
+      iframeDomPath: null
+    };
+
+    // For child frames, find the iframe element and include its properties
+    if (sourceType === 'child') {
+      const iframes = document.querySelectorAll('iframe');
+      for (const iframe of iframes) {
+        if (iframe.contentWindow === event.source) {
+          source.iframeSrc = iframe.src || null;
+          source.iframeId = iframe.id || null;
+          source.iframeDomPath = getDomPath(iframe);
+          break;
+        }
+      }
+    }
+
+    return source;
+  }
+
   // Send captured message to content script via CustomEvent
   function sendCapturedMessage(capturedMessage) {
     window.dispatchEvent(new CustomEvent(EVENT_NAME, {
@@ -71,9 +122,8 @@
     const capturedMessage = {
       id: generateId(),
       timestamp: Date.now(),
-      target: getFrameMetadata(),
-      sourceOrigin: event.origin,
-      sourceType: getSourceRelationship(event.source),
+      target: getTargetInfo(),
+      source: getSourceInfo(event),
       data: event.data,
       dataPreview: createDataPreview(event.data),
       dataSize: calculateSize(event.data),

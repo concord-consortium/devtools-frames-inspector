@@ -388,6 +388,11 @@ body {
   line-height: 1.8;
 }
 
+.context-separator {
+  height: 8px;
+  border: none;
+}
+
 /* Copy button */
 .copy-btn {
   padding: 4px 8px;

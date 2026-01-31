@@ -9,6 +9,9 @@ const ALL_COLUMNS = [
   { id: 'targetTitle', label: 'Target Title', defaultVisible: false, width: 150 },
   { id: 'sourceOrigin', label: 'Source Origin', defaultVisible: true, width: 120 },
   { id: 'sourceType', label: 'Source', defaultVisible: true, width: 70 },
+  { id: 'sourceIframeSrc', label: 'Source iframe src', defaultVisible: false, width: 200 },
+  { id: 'sourceIframeId', label: 'Source iframe id', defaultVisible: false, width: 100 },
+  { id: 'sourceIframeDomPath', label: 'Source iframe path', defaultVisible: false, width: 200 },
   { id: 'messageType', label: 'Type', defaultVisible: true, width: 80 },
   { id: 'dataPreview', label: 'Data', defaultVisible: true, width: 200 },
   { id: 'dataSize', label: 'Size', defaultVisible: false, width: 60 }
@@ -95,12 +98,15 @@ function getDirectionIcon(sourceType) {
 function getCellValue(msg, colId) {
   switch (colId) {
     case 'timestamp': return formatTimestamp(msg.timestamp);
-    case 'direction': return getDirectionIcon(msg.sourceType);
+    case 'direction': return getDirectionIcon(msg.source?.type);
     case 'targetUrl': return msg.target.url;
     case 'targetOrigin': return msg.target.origin;
     case 'targetTitle': return msg.target.documentTitle || '';
-    case 'sourceOrigin': return msg.sourceOrigin || '';
-    case 'sourceType': return msg.sourceType || '';
+    case 'sourceOrigin': return msg.source?.origin || '';
+    case 'sourceType': return msg.source?.type || '';
+    case 'sourceIframeSrc': return msg.source?.iframeSrc || '';
+    case 'sourceIframeId': return msg.source?.iframeId || '';
+    case 'sourceIframeDomPath': return msg.source?.iframeDomPath || '';
     case 'messageType': return msg.messageType || '';
     case 'dataPreview': return msg.dataPreview;
     case 'dataSize': return formatSize(msg.dataSize);
@@ -224,7 +230,7 @@ function renderMessages() {
       td.dataset.column = col.id;
 
       if (col.id === 'direction') {
-        td.classList.add(`dir-${msg.sourceType || 'unknown'}`);
+        td.classList.add(`dir-${msg.source?.type || 'unknown'}`);
       }
 
       td.addEventListener('contextmenu', (e) => showCellMenu(e, msg, col.id));
@@ -304,9 +310,9 @@ function matchesTerm(msg, term) {
       case 'target':
         return msg.target.origin.toLowerCase().includes(value);
       case 'sourcetype':
-        return (msg.sourceType || 'unknown') === value;
+        return (msg.source?.type || 'unknown') === value;
       case 'source':
-        return (msg.sourceOrigin || '').toLowerCase().includes(value);
+        return (msg.source?.origin || '').toLowerCase().includes(value);
       default:
         return false;
     }
@@ -444,23 +450,44 @@ function renderJsonValue(value, key = null) {
 
 // Render Context tab
 function renderContextTab(msg) {
-  const sourceType = msg.sourceType || 'unknown';
+  const sourceType = msg.source?.type || 'unknown';
+
   const rows = [
-    ['Source', `${getDirectionIcon(sourceType)} ${sourceType}`],
     ['Timestamp', new Date(msg.timestamp).toISOString()],
+    ['Size', formatSize(msg.dataSize)],
+    ['', ''], // Separator
     ['Target URL', msg.target.url],
     ['Target Origin', msg.target.origin],
     ['Target Title', msg.target.documentTitle || '(none)'],
-    ['Source Origin', msg.sourceOrigin],
-    ['Size', formatSize(msg.dataSize)],
+    ['', ''], // Separator
+    ['Source Type', `${getDirectionIcon(sourceType)} ${sourceType}`],
+    ['Source Origin', msg.source?.origin || '(unknown)'],
   ];
+
+  // Add iframe-specific rows for child sources
+  if (sourceType === 'child') {
+    if (msg.source?.iframeSrc) {
+      rows.push(['Source iframe src', msg.source.iframeSrc]);
+    }
+    if (msg.source?.iframeId) {
+      rows.push(['Source iframe id', msg.source.iframeId]);
+    }
+    if (msg.source?.iframeDomPath) {
+      rows.push(['Source iframe path', msg.source.iframeDomPath]);
+    }
+  }
 
   const table = document.createElement('table');
   table.className = 'context-table';
 
   rows.forEach(([label, value]) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<th>${label}</th><td>${value}</td>`;
+    if (label === '' && value === '') {
+      // Separator row
+      tr.innerHTML = '<td colspan="2" class="context-separator"></td>';
+    } else {
+      tr.innerHTML = `<th>${label}</th><td>${value}</td>`;
+    }
     table.appendChild(tr);
   });
 
@@ -533,11 +560,11 @@ filterByValue.addEventListener('click', () => {
       filterStr = `target:${msg.target.origin}`;
       break;
     case 'sourceOrigin':
-      filterStr = `source:${msg.sourceOrigin || ''}`;
+      filterStr = `source:${msg.source?.origin || ''}`;
       break;
     case 'direction':
     case 'sourceType':
-      filterStr = `sourceType:${msg.sourceType || 'unknown'}`;
+      filterStr = `sourceType:${msg.source?.type || 'unknown'}`;
       break;
     default:
       filterStr = getCellValue(msg, colId);
