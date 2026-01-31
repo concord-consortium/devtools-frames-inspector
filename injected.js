@@ -46,33 +46,25 @@
     return null;
   }
 
+  // Determine the relationship between this window and the message source
+  function getSourceRelationship(eventSource) {
+    if (!eventSource) return 'unknown';
+    if (eventSource === window) return 'self';
+    if (eventSource === window.parent && window.parent !== window) return 'parent';
+    if (eventSource === window.top && window.top !== window) return 'top';
+    if (window.opener && eventSource === window.opener) return 'opener';
+    for (let i = 0; i < window.frames.length; i++) {
+      if (eventSource === window.frames[i]) return 'child';
+    }
+    return 'unknown';
+  }
+
   // Send captured message to content script via CustomEvent
   function sendCapturedMessage(capturedMessage) {
     window.dispatchEvent(new CustomEvent(EVENT_NAME, {
       detail: capturedMessage
     }));
   }
-
-  // Intercept outgoing postMessage calls
-  const originalPostMessage = window.postMessage.bind(window);
-  window.postMessage = function(message, targetOrigin, transfer) {
-    const capturedMessage = {
-      id: generateId(),
-      timestamp: Date.now(),
-      direction: 'sending',
-      self: getFrameMetadata(),
-      targetOrigin: targetOrigin,
-      sourceOrigin: null,
-      data: message,
-      dataPreview: createDataPreview(message),
-      dataSize: calculateSize(message),
-      messageType: extractMessageType(message)
-    };
-
-    sendCapturedMessage(capturedMessage);
-
-    return originalPostMessage(message, targetOrigin, transfer);
-  };
 
   // Listen for incoming messages
   window.addEventListener('message', (event) => {
@@ -83,6 +75,7 @@
       self: getFrameMetadata(),
       targetOrigin: null,
       sourceOrigin: event.origin,
+      sourceType: getSourceRelationship(event.source),
       data: event.data,
       dataPreview: createDataPreview(event.data),
       dataSize: calculateSize(event.data),

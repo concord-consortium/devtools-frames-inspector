@@ -9,6 +9,7 @@ const ALL_COLUMNS = [
   { id: 'selfTitle', label: 'Self Title', defaultVisible: false, width: 150 },
   { id: 'targetOrigin', label: 'Target Origin', defaultVisible: true, width: 120 },
   { id: 'sourceOrigin', label: 'Source Origin', defaultVisible: true, width: 120 },
+  { id: 'sourceType', label: 'Source', defaultVisible: true, width: 70 },
   { id: 'messageType', label: 'Type', defaultVisible: true, width: 80 },
   { id: 'dataPreview', label: 'Data', defaultVisible: true, width: 200 },
   { id: 'dataSize', label: 'Size', defaultVisible: false, width: 60 }
@@ -89,6 +90,7 @@ function getCellValue(msg, colId) {
     case 'selfTitle': return msg.self.documentTitle || '';
     case 'targetOrigin': return msg.targetOrigin || '';
     case 'sourceOrigin': return msg.sourceOrigin || '';
+    case 'sourceType': return msg.sourceType || '';
     case 'messageType': return msg.messageType || '';
     case 'dataPreview': return msg.dataPreview;
     case 'dataSize': return formatSize(msg.dataSize);
@@ -446,6 +448,7 @@ function renderContextTab(msg) {
     rows.push(['Target Origin', msg.targetOrigin]);
   } else {
     rows.push(['Source Origin', msg.sourceOrigin]);
+    rows.push(['Source Type', msg.sourceType || 'unknown']);
   }
 
   rows.push(['Size', formatSize(msg.dataSize)]);
