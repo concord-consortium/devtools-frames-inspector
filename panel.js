@@ -785,6 +785,52 @@ function renderFrameTable() {
   }
 }
 
+// Select a frame and show details
+function selectFrame(frameId) {
+  selectedFrameId = frameId;
+
+  // Update row selection
+  frameTbody.querySelectorAll('tr').forEach(tr => {
+    tr.classList.toggle('selected', parseInt(tr.dataset.frameId) === frameId);
+  });
+
+  // Show detail pane
+  const frame = frames.find(f => f.frameId === frameId);
+  if (frame) {
+    frameDetailPane.classList.remove('hidden');
+    renderFrameDetail(frame);
+  }
+}
+
+// Render frame detail pane
+function renderFrameDetail(frame) {
+  const html = `
+    <div class="frame-properties">
+      <table class="context-table">
+        <tr><th>Frame ID</th><td>${frame.frameId}</td></tr>
+        <tr><th>URL</th><td>${frame.url}</td></tr>
+        <tr><th>Origin</th><td>${frame.origin}</td></tr>
+        <tr><th>Title</th><td>${frame.title || '(none)'}</td></tr>
+        <tr><th>Parent</th><td>${frame.parentFrameId === -1 ? '-' : 'frame[' + frame.parentFrameId + ']'}</td></tr>
+      </table>
+    </div>
+    <div class="frame-iframes">
+      <h4>Child iframes (${frame.iframes.length})</h4>
+      ${frame.iframes.length === 0 ? '<p class="placeholder">No iframes in this frame</p>' :
+        frame.iframes.map(iframe => `
+          <div class="iframe-item">
+            <div><strong>src:</strong> ${iframe.src || '(empty)'}</div>
+            <div><strong>id:</strong> ${iframe.id || '(none)'}</div>
+            <div><strong>path:</strong> ${iframe.domPath}</div>
+          </div>
+        `).join('')
+      }
+    </div>
+  `;
+
+  frameDetailContent.innerHTML = html;
+}
+
 // Sidebar click handlers
 sidebar.addEventListener('click', (e) => {
   const item = e.target.closest('.sidebar-item');
