@@ -707,8 +707,82 @@ function switchView(viewName) {
 
 // Refresh hierarchy data
 function refreshHierarchy() {
-  // TODO: Implement in next task
-  console.log('Refresh hierarchy');
+  port.postMessage({ type: 'get-frame-hierarchy', tabId });
+}
+
+// Build tree structure from flat frame list
+function buildFrameTree(frames) {
+  const frameMap = new Map(frames.map(f => [f.frameId, { ...f, children: [] }]));
+  const roots = [];
+
+  for (const frame of frameMap.values()) {
+    if (frame.parentFrameId === -1) {
+      roots.push(frame);
+    } else {
+      const parent = frameMap.get(frame.parentFrameId);
+      if (parent) {
+        parent.children.push(frame);
+      } else {
+        roots.push(frame); // Orphan frame, treat as root
+      }
+    }
+  }
+
+  return roots;
+}
+
+// Render frame table
+function renderFrameTable() {
+  frameTbody.innerHTML = '';
+
+  const roots = buildFrameTree(frames);
+
+  function renderFrame(frame, depth) {
+    const tr = document.createElement('tr');
+    tr.dataset.frameId = frame.frameId;
+
+    if (frame.frameId === selectedFrameId) {
+      tr.classList.add('selected');
+    }
+
+    // Frame label cell with indentation
+    const labelTd = document.createElement('td');
+    labelTd.classList.add(`frame-indent-${Math.min(depth, 4)}`);
+    labelTd.textContent = `frame[${frame.frameId}]`;
+    tr.appendChild(labelTd);
+
+    // URL cell
+    const urlTd = document.createElement('td');
+    urlTd.textContent = frame.url;
+    tr.appendChild(urlTd);
+
+    // Origin cell
+    const originTd = document.createElement('td');
+    originTd.textContent = frame.origin;
+    tr.appendChild(originTd);
+
+    // Title cell
+    const titleTd = document.createElement('td');
+    titleTd.textContent = frame.title;
+    tr.appendChild(titleTd);
+
+    // Parent cell
+    const parentTd = document.createElement('td');
+    parentTd.textContent = frame.parentFrameId === -1 ? '-' : `frame[${frame.parentFrameId}]`;
+    tr.appendChild(parentTd);
+
+    tr.addEventListener('click', () => selectFrame(frame.frameId));
+    frameTbody.appendChild(tr);
+
+    // Render children
+    for (const child of frame.children) {
+      renderFrame(child, depth + 1);
+    }
+  }
+
+  for (const root of roots) {
+    renderFrame(root, 0);
+  }
 }
 
 // Sidebar click handlers
@@ -745,6 +819,9 @@ function connect() {
       addMessage(msg.payload);
     } else if (msg.type === 'clear') {
       clearMessages();
+    } else if (msg.type === 'frame-hierarchy') {
+      frames = msg.payload;
+      renderFrameTable();
     }
   });
 
