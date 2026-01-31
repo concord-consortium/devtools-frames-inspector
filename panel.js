@@ -29,6 +29,13 @@ let preserveLog = false;
 let activeTab = 'data';
 let isRecording = true;
 
+// View state
+let currentView = 'messages';
+
+// Hierarchy state
+let frames = [];
+let selectedFrameId = null;
+
 // DOM elements
 const headerRow = document.getElementById('header-row');
 const messageTbody = document.getElementById('message-tbody');
@@ -44,6 +51,16 @@ const filterByValue = document.getElementById('filter-by-value');
 const resizeHandle = document.getElementById('resize-handle');
 const closeDetailBtn = document.getElementById('close-detail-btn');
 const recordBtn = document.getElementById('record-btn');
+
+// Sidebar and view elements
+const sidebar = document.querySelector('.sidebar');
+const messagesView = document.getElementById('messages-view');
+const hierarchyView = document.getElementById('hierarchy-view');
+const refreshHierarchyBtn = document.getElementById('refresh-hierarchy-btn');
+const frameTbody = document.getElementById('frame-tbody');
+const frameDetailPane = document.getElementById('frame-detail-pane');
+const frameDetailContent = document.getElementById('frame-detail-content');
+const closeFrameDetailBtn = document.getElementById('close-frame-detail-btn');
 
 // Initialize visible columns from defaults or storage
 function initColumns() {
@@ -666,6 +683,52 @@ closeDetailBtn.addEventListener('click', () => {
   });
 });
 
+// Switch between views
+function switchView(viewName) {
+  currentView = viewName;
+
+  // Update sidebar
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.view === viewName);
+  });
+
+  // Update views
+  messagesView.classList.toggle('active', viewName === 'messages');
+  hierarchyView.classList.toggle('active', viewName === 'hierarchy');
+
+  // Save preference
+  chrome.storage.local.set({ currentView: viewName });
+
+  // If switching to hierarchy, refresh data
+  if (viewName === 'hierarchy') {
+    refreshHierarchy();
+  }
+}
+
+// Refresh hierarchy data
+function refreshHierarchy() {
+  // TODO: Implement in next task
+  console.log('Refresh hierarchy');
+}
+
+// Sidebar click handlers
+sidebar.addEventListener('click', (e) => {
+  const item = e.target.closest('.sidebar-item');
+  if (item && item.dataset.view) {
+    switchView(item.dataset.view);
+  }
+});
+
+// Refresh hierarchy button
+refreshHierarchyBtn.addEventListener('click', () => {
+  refreshHierarchy();
+});
+
+// Close frame detail button
+closeFrameDetailBtn.addEventListener('click', () => {
+  frameDetailPane.classList.add('hidden');
+});
+
 // Connect to background script
 let port = null;
 let tabId = null;
@@ -695,4 +758,12 @@ function connect() {
 initColumnWidths();
 initColumns();
 detailPane.classList.add('hidden');
+
+// Load saved view preference
+chrome.storage.local.get(['currentView'], (result) => {
+  if (result.currentView) {
+    switchView(result.currentView);
+  }
+});
+
 connect();
