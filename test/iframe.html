@@ -25,8 +25,14 @@
       }
     });
 
-    // Send ready on load
-    sendToParent('ready');
+    // Send ready on load. The delay seems necessary for the 
+    // messages to show up when the page is first loaded.
+    // My guess is this is because the child iframe is being loaded
+    // in parallel with the parent. So the child is sending its message
+    // before the parent is ready to receive it.
+    // TODO: add more info to the extension to help other developers
+    // diagnose this kind of timing issue in their own pages.
+    setTimeout(() => sendToParent('ready'), 100);
   </script>
 </body>
 </html>
