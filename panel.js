@@ -9,6 +9,7 @@ const ALL_COLUMNS = [
   { id: 'targetTitle', label: 'Target Title', defaultVisible: false, width: 150 },
   { id: 'sourceOrigin', label: 'Source Origin', defaultVisible: true, width: 120 },
   { id: 'sourceType', label: 'Source', defaultVisible: true, width: 70 },
+  { id: 'sourceFrameId', label: 'Source Frame', defaultVisible: false, width: 80 },
   { id: 'sourceIframeSrc', label: 'Source iframe src', defaultVisible: false, width: 200 },
   { id: 'sourceIframeId', label: 'Source iframe id', defaultVisible: false, width: 100 },
   { id: 'sourceIframeDomPath', label: 'Source iframe path', defaultVisible: false, width: 200 },
@@ -120,6 +121,7 @@ function getCellValue(msg, colId) {
     case 'targetTitle': return msg.target.documentTitle || '';
     case 'sourceOrigin': return msg.source?.origin || '';
     case 'sourceType': return msg.source?.type || '';
+    case 'sourceFrameId': return msg.source?.frameId !== undefined ? `frame[${msg.source.frameId}]` : '';
     case 'sourceIframeSrc': return msg.source?.iframeSrc || '';
     case 'sourceIframeId': return msg.source?.iframeId || '';
     case 'sourceIframeDomPath': return msg.source?.iframeDomPath || '';
@@ -464,10 +466,23 @@ function renderContextTab(msg) {
     ['Target Origin', msg.target.origin],
     ['Target Title', msg.target.documentTitle || '(none)'],
     ['Target Frame', msg.target.frameId !== undefined ? `frame[${msg.target.frameId}]` : '(unknown)'],
+  ];
+
+  // Add target frame info error if present
+  if (msg.target.frameInfoError) {
+    rows.push(['Target Frame Error', msg.target.frameInfoError]);
+  }
+
+  rows.push(
     ['', ''], // Separator
     ['Source Type', `${getDirectionIcon(sourceType)} ${sourceType}`],
     ['Source Origin', msg.source?.origin || '(unknown)'],
-  ];
+  );
+
+  // Add source frame ID if available
+  if (msg.source?.frameId !== undefined) {
+    rows.push(['Source Frame', `frame[${msg.source.frameId}]`]);
+  }
 
   // Add iframe-specific rows for child sources
   if (sourceType === 'child') {

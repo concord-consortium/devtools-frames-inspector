@@ -173,33 +173,59 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 
   if (!tabId) return;
 
-  // Enrich the payload with frameId on target and buffered flag
-  const enrichedPayload = {
-    ...message.payload,
-    target: {
-      ...message.payload.target,
-      frameId: frameId
-    }
-  };
+  // Use async IIFE to handle potential async operations
+  (async () => {
+    // Enrich the payload with frameId on target and buffered flag
+    const enrichedPayload = {
+      ...message.payload,
+      target: {
+        ...message.payload.target,
+        frameId: frameId
+      }
+    };
 
-  const panel = panelConnections.get(tabId);
-  if (panel) {
-    enrichedPayload.buffered = false;
-    panel.postMessage({
-      type: 'message',
-      payload: enrichedPayload
-    });
-  } else if (bufferingEnabledTabs.has(tabId)) {
-    // Buffer the message for when panel connects (only for tabs opened from monitored tabs)
-    enrichedPayload.buffered = true;
-    if (!messageBuffers.has(tabId)) {
-      messageBuffers.set(tabId, []);
+    // Add source frameId for parent messages
+    if (message.payload.source?.type === 'parent') {
+      try {
+        const frame = await chrome.webNavigation.getFrame({ tabId, frameId });
+        if (!frame) {
+          enrichedPayload.target.frameInfoError = 'Frame not found';
+        } else if (frame.parentFrameId == null) {
+          enrichedPayload.source = {
+            ...enrichedPayload.source,
+            frameInfoError: 'No parentFrameId'
+          };
+        } else {
+          enrichedPayload.source = {
+            ...enrichedPayload.source,
+            frameId: frame.parentFrameId
+          };
+        }
+      } catch (e) {
+        // Frame may no longer exist
+        enrichedPayload.target.frameInfoError = e.message || 'Failed to get frame info';
+      }
     }
-    const buffer = messageBuffers.get(tabId);
-    if (buffer.length < MAX_BUFFER_SIZE) {
-      buffer.push(enrichedPayload);
+
+    const panel = panelConnections.get(tabId);
+    if (panel) {
+      enrichedPayload.buffered = false;
+      panel.postMessage({
+        type: 'message',
+        payload: enrichedPayload
+      });
+    } else if (bufferingEnabledTabs.has(tabId)) {
+      // Buffer the message for when panel connects (only for tabs opened from monitored tabs)
+      enrichedPayload.buffered = true;
+      if (!messageBuffers.has(tabId)) {
+        messageBuffers.set(tabId, []);
+      }
+      const buffer = messageBuffers.get(tabId);
+      if (buffer.length < MAX_BUFFER_SIZE) {
+        buffer.push(enrichedPayload);
+      }
     }
-  }
+  })();
 });
 
 // Enable buffering for tabs opened from monitored tabs
