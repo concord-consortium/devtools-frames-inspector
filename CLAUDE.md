@@ -21,6 +21,16 @@ cd test && python -m http.server 8000
 
 ## Architecture
 
+### Dynamic Injection
+
+The extension uses programmatic script injection to minimize impact on pages:
+
+- Scripts are injected only when the PostMessage panel is opened for a tab
+- Popups opened from monitored tabs get buffering enabled automatically (captures early messages before panel connects)
+- Once monitoring starts, it persists until page reload (even if DevTools closes)
+
+### Message Flow
+
 Message flow uses a two-script approach because content scripts can't directly intercept page JavaScript:
 
 ```

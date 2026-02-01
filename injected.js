@@ -36,9 +36,15 @@
     return parts.join(' > ');
   }
 
-  // Generate unique ID
+  // Generate unique ID (12 chars = 72 bits of entropy)
   function generateId() {
-    return crypto.randomUUID();
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    let id = '';
+    for (let i = 0; i < 12; i++) {
+      id += alphabet[bytes[i] & 63];
+    }
+    return id;
   }
 
   // Create data preview (truncated string representation)

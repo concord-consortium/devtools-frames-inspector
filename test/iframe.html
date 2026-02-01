@@ -19,7 +19,6 @@
     }
 
     window.addEventListener('message', (e) => {
-      console.log('Iframe received:', e.data);
       // Auto-respond with ack
       if (e.data.type && e.data.type !== 'ack') {
         setTimeout(() => sendToParent('ack'), 100);

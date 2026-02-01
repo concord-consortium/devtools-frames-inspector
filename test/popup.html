@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Popup Test Page</title>
+  <!-- Send message as early as possible - before any other resources load -->
+  <script>
+    if (window.opener) {
+      window.opener.postMessage({ type: 'popup-ready', timing: 'head-inline', timestamp: performance.now() }, '*');
+    }
+  </script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    button { margin: 5px; padding: 8px 16px; }
+    .log { font-family: monospace; font-size: 12px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Popup Window</h1>
+
+  <div class="controls">
+    <button onclick="sendToOpener('ping')">Send ping to opener</button>
+    <button onclick="sendToOpener('data')">Send data to opener</button>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <script>
+    // Also send after DOMContentLoaded to compare timing
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'popup-ready', timing: 'DOMContentLoaded', timestamp: performance.now() }, '*');
+      }
+    });
+
+    function sendToOpener(type) {
+      if (window.opener) {
+        window.opener.postMessage({ type, from: 'popup', timestamp: performance.now() }, '*');
+      } else {
+        log('No opener window');
+      }
+    }
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      el.textContent += msg + '\n';
+    }
+
+    window.addEventListener('message', (e) => {
+      log('Received: ' + JSON.stringify(e.data));
+    });
+
+    log('Popup loaded at ' + performance.now().toFixed(2) + 'ms');
+  </script>
+</body>
+</html>

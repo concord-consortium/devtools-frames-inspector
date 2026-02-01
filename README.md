@@ -60,6 +60,14 @@ cd test && python -m http.server 8000
 # Then open http://localhost:8000/test-page.html
 ```
 
+## How Monitoring Works
+
+The extension is designed to be minimally invasive:
+
+- **On-demand injection**: Scripts are only injected into pages when you open the PostMessage panel for that tab. Pages you don't inspect remain untouched.
+- **Popup capture**: When you open a popup from a monitored tab, the extension automatically enables monitoring for the popup and buffers early messages until you view its panel.
+- **Persistent monitoring**: Once enabled, monitoring stays active even when the panel isn't visible or DevTools is closed. **Reload the page to disable monitoring.**
+
 ## Architecture
 
 ```

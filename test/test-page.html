@@ -21,6 +21,28 @@
     <button onclick="broadcast()">Broadcast to all</button>
   </div>
 
+  <div class="controls">
+    <h3>Popup Testing</h3>
+    <button onclick="openPopup()">Open Popup</button>
+    <span id="popup-status"></span>
+  </div>
+
+  <div class="controls">
+    <h3>Dynamic Iframe Testing</h3>
+    <button onclick="addDynamicIframe()">Add Dynamic Iframe</button>
+    <button onclick="sendToDynamicIframe()">Send to Dynamic Iframe</button>
+    <button onclick="addDelayedIframe()">Add Delayed Iframe (2s)</button>
+    <span id="dynamic-iframe-status"></span>
+  </div>
+
+  <div class="controls">
+    <h3>Navigation Testing</h3>
+    <button onclick="navigateToSelf()">Navigate to this page (new URL)</button>
+    <span>Open PostMessage panel first, then click to test injection during navigation</span>
+  </div>
+
+  <div id="dynamic-iframe-container"></div>
+
   <h3>Iframe 1</h3>
   <iframe id="iframe1" src="iframe.html" width="400" height="100"></iframe>
 
@@ -37,9 +59,128 @@
       window.postMessage({ type: 'broadcast', from: 'main' }, '*');
     }
 
+    let popupWindow = null;
+
+    function openPopup() {
+      const status = document.getElementById('popup-status');
+      status.textContent = 'Opening...';
+
+      // Open the popup
+      popupWindow = window.open('popup.html', 'testPopup', 'width=500,height=400');
+
+      // Send message immediately after getting the window object
+      if (popupWindow) {
+        popupWindow.postMessage({ type: 'init-from-opener', timing: 'immediate', timestamp: performance.now() }, '*');
+        status.textContent = 'Sent immediate message';
+
+        // Also try after a microtask
+        Promise.resolve().then(() => {
+          popupWindow.postMessage({ type: 'init-from-opener', timing: 'microtask', timestamp: performance.now() }, '*');
+        });
+
+        // And after the popup should be loaded
+        setTimeout(() => {
+          popupWindow.postMessage({ type: 'init-from-opener', timing: 'setTimeout-100ms', timestamp: performance.now() }, '*');
+        }, 500);
+      } else {
+        status.textContent = 'Popup blocked!';
+      }
+    }
+
     window.addEventListener('message', (e) => {
-      console.log('Main received:', e.data);
+      if (e.data.type === 'popup-ready') {
+        document.getElementById('popup-status').textContent =
+          'Popup ready (' + e.data.timing + ' at ' + e.data.timestamp.toFixed(2) + 'ms)';
+      }
     });
+
+    let dynamicIframe = null;
+    let dynamicIframeCount = 0;
+
+    function addDynamicIframe() {
+      const container = document.getElementById('dynamic-iframe-container');
+      const status = document.getElementById('dynamic-iframe-status');
+
+      dynamicIframeCount++;
+      const iframe = document.createElement('iframe');
+      iframe.id = 'dynamic-iframe-' + dynamicIframeCount;
+      iframe.src = 'iframe.html';
+      iframe.width = 400;
+      iframe.height = 100;
+
+      // Add a label
+      const label = document.createElement('h4');
+      label.textContent = 'Dynamic Iframe ' + dynamicIframeCount;
+      container.appendChild(label);
+      container.appendChild(iframe);
+
+      dynamicIframe = iframe;
+      status.textContent = 'Added iframe #' + dynamicIframeCount;
+
+      // Send a message as soon as iframe loads
+      iframe.onload = () => {
+        iframe.contentWindow.postMessage({
+          type: 'dynamic-iframe-init',
+          iframeId: dynamicIframeCount,
+          timing: 'onload',
+          timestamp: performance.now()
+        }, '*');
+        status.textContent = 'Iframe #' + dynamicIframeCount + ' loaded, sent init message';
+      };
+    }
+
+    function sendToDynamicIframe() {
+      const status = document.getElementById('dynamic-iframe-status');
+      if (!dynamicIframe) {
+        status.textContent = 'No dynamic iframe yet - click "Add Dynamic Iframe" first';
+        return;
+      }
+      dynamicIframe.contentWindow.postMessage({
+        type: 'dynamic-iframe-message',
+        timestamp: performance.now()
+      }, '*');
+      status.textContent = 'Sent message to dynamic iframe';
+    }
+
+    function addDelayedIframe() {
+      const status = document.getElementById('dynamic-iframe-status');
+      status.textContent = 'Adding iframe in 2 seconds... (open PostMessage panel now!)';
+
+      setTimeout(() => {
+        const container = document.getElementById('dynamic-iframe-container');
+        dynamicIframeCount++;
+
+        const iframe = document.createElement('iframe');
+        iframe.id = 'delayed-iframe-' + dynamicIframeCount;
+        iframe.src = 'iframe.html';
+        iframe.width = 400;
+        iframe.height = 100;
+
+        const label = document.createElement('h4');
+        label.textContent = 'Delayed Iframe ' + dynamicIframeCount;
+        container.appendChild(label);
+        container.appendChild(iframe);
+
+        dynamicIframe = iframe;
+        status.textContent = 'Delayed iframe added';
+
+        iframe.onload = () => {
+          iframe.contentWindow.postMessage({
+            type: 'delayed-iframe-init',
+            iframeId: dynamicIframeCount,
+            timestamp: performance.now()
+          }, '*');
+          status.textContent = 'Delayed iframe loaded, sent init message';
+        };
+      }, 2000);
+    }
+
+    function navigateToSelf() {
+      // Navigate to this page with a different URL param to force a real navigation
+      const url = new URL(window.location.href);
+      url.searchParams.set('t', Date.now());
+      window.location.href = url.toString();
+    }
   </script>
 </body>
 </html>

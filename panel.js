@@ -455,12 +455,15 @@ function renderContextTab(msg) {
   const sourceType = msg.source?.type || 'unknown';
 
   const rows = [
+    ['Message ID', msg.id],
     ['Timestamp', new Date(msg.timestamp).toISOString()],
     ['Size', formatSize(msg.dataSize)],
+    ['Buffered', msg.buffered ? 'Yes' : 'No'],
     ['', ''], // Separator
     ['Target URL', msg.target.url],
     ['Target Origin', msg.target.origin],
     ['Target Title', msg.target.documentTitle || '(none)'],
+    ['Target Frame', msg.target.frameId !== undefined ? `frame[${msg.target.frameId}]` : '(unknown)'],
     ['', ''], // Separator
     ['Source Type', `${getDirectionIcon(sourceType)} ${sourceType}`],
     ['Source Origin', msg.source?.origin || '(unknown)'],
