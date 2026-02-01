@@ -29,10 +29,16 @@ let preserveLog = false;
 let activeTab = 'data';
 let isRecording = true;
 
+// View state
+let currentView = 'messages';
+
+// Hierarchy state
+let frames = [];
+let selectedFrameId = null;
+
 // DOM elements
 const headerRow = document.getElementById('header-row');
 const messageTbody = document.getElementById('message-tbody');
-const messageCount = document.getElementById('message-count');
 const filterInput = document.getElementById('filter-input');
 const clearBtn = document.getElementById('clear-btn');
 const preserveLogCheckbox = document.getElementById('preserve-log-checkbox');
@@ -44,6 +50,16 @@ const filterByValue = document.getElementById('filter-by-value');
 const resizeHandle = document.getElementById('resize-handle');
 const closeDetailBtn = document.getElementById('close-detail-btn');
 const recordBtn = document.getElementById('record-btn');
+
+// Sidebar and view elements
+const sidebar = document.querySelector('.sidebar');
+const messagesView = document.getElementById('messages-view');
+const hierarchyView = document.getElementById('hierarchy-view');
+const refreshHierarchyBtn = document.getElementById('refresh-hierarchy-btn');
+const frameTbody = document.getElementById('frame-tbody');
+const frameDetailPane = document.getElementById('frame-detail-pane');
+const frameDetailContent = document.getElementById('frame-detail-content');
+const closeFrameDetailBtn = document.getElementById('close-frame-detail-btn');
 
 // Initialize visible columns from defaults or storage
 function initColumns() {
@@ -241,20 +257,6 @@ function renderMessages() {
     tr.addEventListener('click', () => selectMessage(msg.id));
     messageTbody.appendChild(tr);
   });
-
-  updateMessageCount();
-}
-
-// Update message count in status bar
-function updateMessageCount() {
-  const total = messages.length;
-  const filtered = filteredMessages.length;
-
-  if (filterText && filtered !== total) {
-    messageCount.textContent = `${filtered} / ${total} messages`;
-  } else {
-    messageCount.textContent = `${total} messages`;
-  }
 }
 
 // Handle sort
@@ -666,6 +668,172 @@ closeDetailBtn.addEventListener('click', () => {
   });
 });
 
+// Switch between views
+function switchView(viewName) {
+  currentView = viewName;
+
+  // Update sidebar
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.view === viewName);
+  });
+
+  // Update views
+  messagesView.classList.toggle('active', viewName === 'messages');
+  hierarchyView.classList.toggle('active', viewName === 'hierarchy');
+
+  // Save preference
+  chrome.storage.local.set({ currentView: viewName });
+
+  // If switching to hierarchy, refresh data
+  if (viewName === 'hierarchy') {
+    refreshHierarchy();
+  }
+}
+
+// Refresh hierarchy data
+function refreshHierarchy() {
+  port.postMessage({ type: 'get-frame-hierarchy', tabId });
+}
+
+// Build tree structure from flat frame list
+function buildFrameTree(frames) {
+  const frameMap = new Map(frames.map(f => [f.frameId, { ...f, children: [] }]));
+  const roots = [];
+
+  for (const frame of frameMap.values()) {
+    if (frame.parentFrameId === -1) {
+      roots.push(frame);
+    } else {
+      const parent = frameMap.get(frame.parentFrameId);
+      if (parent) {
+        parent.children.push(frame);
+      } else {
+        roots.push(frame); // Orphan frame, treat as root
+      }
+    }
+  }
+
+  return roots;
+}
+
+// Render frame table
+function renderFrameTable() {
+  frameTbody.innerHTML = '';
+
+  const roots = buildFrameTree(frames);
+
+  function renderFrame(frame, depth) {
+    const tr = document.createElement('tr');
+    tr.dataset.frameId = frame.frameId;
+
+    if (frame.frameId === selectedFrameId) {
+      tr.classList.add('selected');
+    }
+
+    // Frame label cell with indentation
+    const labelTd = document.createElement('td');
+    labelTd.classList.add(`frame-indent-${Math.min(depth, 4)}`);
+    labelTd.textContent = `frame[${frame.frameId}]`;
+    tr.appendChild(labelTd);
+
+    // URL cell
+    const urlTd = document.createElement('td');
+    urlTd.textContent = frame.url;
+    tr.appendChild(urlTd);
+
+    // Origin cell
+    const originTd = document.createElement('td');
+    originTd.textContent = frame.origin;
+    tr.appendChild(originTd);
+
+    // Title cell
+    const titleTd = document.createElement('td');
+    titleTd.textContent = frame.title;
+    tr.appendChild(titleTd);
+
+    // Parent cell
+    const parentTd = document.createElement('td');
+    parentTd.textContent = frame.parentFrameId === -1 ? '-' : `frame[${frame.parentFrameId}]`;
+    tr.appendChild(parentTd);
+
+    tr.addEventListener('click', () => selectFrame(frame.frameId));
+    frameTbody.appendChild(tr);
+
+    // Render children
+    for (const child of frame.children) {
+      renderFrame(child, depth + 1);
+    }
+  }
+
+  for (const root of roots) {
+    renderFrame(root, 0);
+  }
+}
+
+// Select a frame and show details
+function selectFrame(frameId) {
+  selectedFrameId = frameId;
+
+  // Update row selection
+  frameTbody.querySelectorAll('tr').forEach(tr => {
+    tr.classList.toggle('selected', parseInt(tr.dataset.frameId) === frameId);
+  });
+
+  // Show detail pane
+  const frame = frames.find(f => f.frameId === frameId);
+  if (frame) {
+    frameDetailPane.classList.remove('hidden');
+    renderFrameDetail(frame);
+  }
+}
+
+// Render frame detail pane
+function renderFrameDetail(frame) {
+  const html = `
+    <div class="frame-properties">
+      <table class="context-table">
+        <tr><th>Frame ID</th><td>${frame.frameId}</td></tr>
+        <tr><th>URL</th><td>${frame.url}</td></tr>
+        <tr><th>Origin</th><td>${frame.origin}</td></tr>
+        <tr><th>Title</th><td>${frame.title || '(none)'}</td></tr>
+        <tr><th>Parent</th><td>${frame.parentFrameId === -1 ? '-' : 'frame[' + frame.parentFrameId + ']'}</td></tr>
+      </table>
+    </div>
+    <div class="frame-iframes">
+      <h4>Child iframes (${frame.iframes.length})</h4>
+      ${frame.iframes.length === 0 ? '<p class="placeholder">No iframes in this frame</p>' :
+        frame.iframes.map(iframe => `
+          <div class="iframe-item">
+            <div><strong>src:</strong> ${iframe.src || '(empty)'}</div>
+            <div><strong>id:</strong> ${iframe.id || '(none)'}</div>
+            <div><strong>path:</strong> ${iframe.domPath}</div>
+          </div>
+        `).join('')
+      }
+    </div>
+  `;
+
+  frameDetailContent.innerHTML = html;
+}
+
+// Sidebar click handlers
+sidebar.addEventListener('click', (e) => {
+  const item = e.target.closest('.sidebar-item');
+  if (item && item.dataset.view) {
+    switchView(item.dataset.view);
+  }
+});
+
+// Refresh hierarchy button
+refreshHierarchyBtn.addEventListener('click', () => {
+  refreshHierarchy();
+});
+
+// Close frame detail button
+closeFrameDetailBtn.addEventListener('click', () => {
+  frameDetailPane.classList.add('hidden');
+});
+
 // Connect to background script
 let port = null;
 let tabId = null;
@@ -682,6 +850,9 @@ function connect() {
       addMessage(msg.payload);
     } else if (msg.type === 'clear') {
       clearMessages();
+    } else if (msg.type === 'frame-hierarchy') {
+      frames = msg.payload;
+      renderFrameTable();
     }
   });
 
@@ -695,4 +866,12 @@ function connect() {
 initColumnWidths();
 initColumns();
 detailPane.classList.add('hidden');
+
+// Load saved view preference
+chrome.storage.local.get(['currentView'], (result) => {
+  if (result.currentView) {
+    switchView(result.currentView);
+  }
+});
+
 connect();

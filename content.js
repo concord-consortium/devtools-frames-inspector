@@ -24,4 +24,45 @@
 
   // Inject immediately
   injectScript();
+
+  // Generate a CSS selector path for an element
+  function getDomPath(element) {
+    const parts = [];
+    while (element && element.nodeType === Node.ELEMENT_NODE) {
+      let selector = element.nodeName.toLowerCase();
+      if (element.id) {
+        selector += '#' + element.id;
+        parts.unshift(selector);
+        break; // id is unique, stop here
+      }
+      // Position among same-type siblings
+      let sibling = element;
+      let nth = 1;
+      while ((sibling = sibling.previousElementSibling)) {
+        if (sibling.nodeName === element.nodeName) nth++;
+      }
+      if (nth > 1) selector += ':nth-of-type(' + nth + ')';
+      parts.unshift(selector);
+      element = element.parentElement;
+    }
+    return parts.join(' > ');
+  }
+
+  // Handle get-frame-info requests from background
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'get-frame-info') {
+      const iframes = Array.from(document.querySelectorAll('iframe')).map(iframe => ({
+        src: iframe.src || '',
+        id: iframe.id || '',
+        domPath: getDomPath(iframe)
+      }));
+
+      sendResponse({
+        title: document.title,
+        origin: window.location.origin,
+        iframes: iframes
+      });
+    }
+    return true; // Keep channel open for async response
+  });
 })();

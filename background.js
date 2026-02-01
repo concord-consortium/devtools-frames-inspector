@@ -23,9 +23,63 @@ chrome.runtime.onConnect.addListener((port) => {
       });
     } else if (msg.type === 'preserveLog') {
       preserveLogPrefs.set(msg.tabId, msg.value);
+    } else if (msg.type === 'get-frame-hierarchy') {
+      getFrameHierarchy(msg.tabId).then(hierarchy => {
+        port.postMessage({
+          type: 'frame-hierarchy',
+          payload: hierarchy
+        });
+      });
     }
   });
 });
+
+// Get frame hierarchy for a tab
+async function getFrameHierarchy(tabId) {
+  try {
+    // Get all frames from webNavigation
+    const webNavFrames = await chrome.webNavigation.getAllFrames({ tabId });
+    if (!webNavFrames) return [];
+
+    // Request frame info from each frame's content script
+    const frameInfoPromises = webNavFrames.map(async (frame) => {
+      try {
+        const info = await chrome.tabs.sendMessage(tabId,
+          { type: 'get-frame-info' },
+          { frameId: frame.frameId }
+        );
+        return {
+          frameId: frame.frameId,
+          url: frame.url,
+          parentFrameId: frame.parentFrameId,
+          title: info?.title || '',
+          origin: info?.origin || '',
+          iframes: info?.iframes || []
+        };
+      } catch (e) {
+        // Content script may not be loaded in this frame
+        let origin = '';
+        try {
+          origin = new URL(frame.url).origin;
+        } catch {}
+        return {
+          frameId: frame.frameId,
+          url: frame.url,
+          parentFrameId: frame.parentFrameId,
+          title: '',
+          origin: origin,
+          iframes: []
+        };
+      }
+    });
+
+    const frames = await Promise.all(frameInfoPromises);
+    return frames;
+  } catch (e) {
+    console.error('Failed to get frame hierarchy:', e);
+    return [];
+  }
+}
 
 // Handle messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender) => {
