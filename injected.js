@@ -2,6 +2,10 @@
 // Communicates with content script via CustomEvents
 
 (function() {
+  // Guard against multiple injections
+  if (window.__postmessage_devtools_injected__) return;
+  window.__postmessage_devtools_injected__ = true;
+
   const EVENT_NAME = '__postmessage_devtools__';
 
   // Collect target frame info (the frame receiving the message)

@@ -2,6 +2,10 @@
 // Runs in Chrome's isolated world, has access to chrome.runtime
 
 (function() {
+  // Guard against multiple injections
+  if (window.__postmessage_devtools_content__) return;
+  window.__postmessage_devtools_content__ = true;
+
   const EVENT_NAME = '__postmessage_devtools__';
 
   // Inject the script into the page's main world
