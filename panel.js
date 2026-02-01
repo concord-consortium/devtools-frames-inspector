@@ -736,7 +736,12 @@ function renderFrameTable() {
     // Frame label cell with indentation
     const labelTd = document.createElement('td');
     labelTd.classList.add(`frame-indent-${Math.min(depth, 4)}`);
-    labelTd.textContent = `frame[${frame.frameId}]`;
+    if (frame.isOpener) {
+      labelTd.textContent = 'opener';
+      labelTd.style.fontStyle = 'italic';
+    } else {
+      labelTd.textContent = `frame[${frame.frameId}]`;
+    }
     tr.appendChild(labelTd);
 
     // URL cell

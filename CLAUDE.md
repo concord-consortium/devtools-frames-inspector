@@ -48,7 +48,12 @@ injected.js ──CustomEvent──►    content.js ──runtime.msg──► 
 
 ## Design Constraints
 
-- **Cross-origin is the primary use case.** Don't add features that only work for same-origin iframes. If a feature can't work cross-origin, it's not worth adding.
+- **Cross-origin is the ONLY use case that matters.** This extension exists specifically for debugging cross-origin postMessage communication. Same-origin scenarios are trivial to debug with standard DevTools.
+  - NEVER add features that only work for same-origin iframes or windows
+  - NEVER add fallback text like "(cross-origin)" or "(unavailable)" - if information isn't available cross-origin, find a way to get it or leave it blank
+  - NEVER add special styling (opacity, italics, etc.) to indicate cross-origin limitations
+  - If a feature can't work cross-origin, it's not worth adding
+  - Always test features with cross-origin iframes first
 
 ## Filter Syntax
 

@@ -102,6 +102,8 @@ async function getFrameHierarchy(tabId) {
     const webNavFrames = await chrome.webNavigation.getAllFrames({ tabId });
     if (!webNavFrames) return [];
 
+    let openerInfo = null;
+
     // Request frame info from each frame's content script
     const frameInfoPromises = webNavFrames.map(async (frame) => {
       try {
@@ -109,6 +111,12 @@ async function getFrameHierarchy(tabId) {
           { type: 'get-frame-info' },
           { frameId: frame.frameId }
         );
+
+        // Capture opener info from main frame
+        if (frame.frameId === 0 && info?.opener) {
+          openerInfo = info.opener;
+        }
+
         return {
           frameId: frame.frameId,
           url: frame.url,
@@ -135,6 +143,20 @@ async function getFrameHierarchy(tabId) {
     });
 
     const frames = await Promise.all(frameInfoPromises);
+
+    // Add opener as a special frame at the beginning if it exists
+    if (openerInfo) {
+      frames.unshift({
+        frameId: 'opener',
+        url: '',
+        parentFrameId: -1,
+        title: '',
+        origin: openerInfo.origin || '',
+        iframes: [],
+        isOpener: true
+      });
+    }
+
     return frames;
   } catch (e) {
     console.error('Failed to get frame hierarchy:', e);

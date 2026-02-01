@@ -52,6 +52,22 @@
     return parts.join(' > ');
   }
 
+  // Get opener info if available
+  function getOpenerInfo() {
+    if (!window.opener) return null;
+
+    const info = {};
+
+    // window.origin is accessible cross-origin (unlike location.origin)
+    try {
+      info.origin = window.opener.origin;
+    } catch (e) {
+      info.origin = null;
+    }
+
+    return info;
+  }
+
   // Handle get-frame-info requests from background
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'get-frame-info') {
@@ -61,11 +77,18 @@
         domPath: getDomPath(iframe)
       }));
 
-      sendResponse({
+      const response = {
         title: document.title,
         origin: window.location.origin,
         iframes: iframes
-      });
+      };
+
+      // Include opener info only for main frame
+      if (window === window.top) {
+        response.opener = getOpenerInfo();
+      }
+
+      sendResponse(response);
     }
     return true; // Keep channel open for async response
   });
