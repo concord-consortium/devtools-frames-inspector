@@ -408,16 +408,6 @@ body {
   background: #e8eaed;
 }
 
-/* Status bar */
-.status-bar {
-  padding: 4px 8px;
-  border-top: 1px solid #cacdd1;
-  background: #f3f3f3;
-  font-size: 11px;
-  color: #5f6368;
-  flex-shrink: 0;
-}
-
 /* Context menus */
 .column-menu,
 .cell-menu {

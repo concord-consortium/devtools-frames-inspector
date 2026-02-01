@@ -39,7 +39,6 @@ let selectedFrameId = null;
 // DOM elements
 const headerRow = document.getElementById('header-row');
 const messageTbody = document.getElementById('message-tbody');
-const messageCount = document.getElementById('message-count');
 const filterInput = document.getElementById('filter-input');
 const clearBtn = document.getElementById('clear-btn');
 const preserveLogCheckbox = document.getElementById('preserve-log-checkbox');
@@ -258,20 +257,6 @@ function renderMessages() {
     tr.addEventListener('click', () => selectMessage(msg.id));
     messageTbody.appendChild(tr);
   });
-
-  updateMessageCount();
-}
-
-// Update message count in status bar
-function updateMessageCount() {
-  const total = messages.length;
-  const filtered = filteredMessages.length;
-
-  if (filterText && filtered !== total) {
-    messageCount.textContent = `${filtered} / ${total} messages`;
-  } else {
-    messageCount.textContent = `${total} messages`;
-  }
 }
 
 // Handle sort
