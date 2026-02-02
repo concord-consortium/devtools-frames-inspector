@@ -61,7 +61,7 @@ Firefox and Safari have `browser.runtime.getFrameId(target)` which accepts a `Wi
 | Token-based postMessage handshake | Requires child cooperation, authenticity concerns |
 | `webRequest.onBeforeRequest` timing | Race conditions with multiple same-URL iframes |
 
-#### Token handshake (most viable workaround)
+#### Token handshake
 
 1. Parent generates unique token per iframe element
 2. Parent sends token via `iframe.contentWindow.postMessage({token}, '*')`
@@ -74,6 +74,33 @@ Problems:
 - Page JavaScript could intercept or spoof messages
 - Adds complexity and potential timing issues
 - Still doesn't help for messages we're passively observing
+
+#### Chrome DevTools Protocol (CDP)
+
+Chrome DevTools itself uses the Chrome DevTools Protocol to get frame owner information. The Application panel's "Frames" section shows an "owner element" field for iframes, displayed as a CSS selector for the iframe element. This uses the **`DOM.getFrameOwner`** CDP method:
+
+- Takes a `frameId` as input
+- Returns `backendNodeId` and `nodeId` for the iframe element
+- Additional CDP calls can retrieve attributes to build a CSS selector
+
+**Why extensions can't use this:**
+
+The only way for Chrome extensions to access CDP is via the `chrome.debugger` API. However, attaching the debugger displays a persistent yellow banner at the top of the page:
+
+> "[Extension name] started debugging this browser"
+
+This banner:
+- Cannot be dismissed by the user
+- Remains visible the entire time the debugger is attached
+- Is intentionally intrusive as a security measure
+
+Even though DevTools extensions run inside DevTools (which is already using CDP internally), they don't get access to that existing CDP connection. Extensions are sandboxed and must use `chrome.debugger.attach()` like any other extension, which triggers the banner.
+
+This makes CDP impractical for a DevTools extension—users would see a warning banner despite already having DevTools open.
+
+**References:**
+- [CDP DOM.getFrameOwner](https://chromedevtools.github.io/devtools-protocol/tot/DOM/#method-getFrameOwner)
+- [chrome.debugger API](https://developer.chrome.com/docs/extensions/reference/api/debugger)
 
 ### If Chrome implements `runtime.getFrameId()`
 

@@ -612,3 +612,23 @@ body {
 .iframe-item div:last-child {
   margin-bottom: 0;
 }
+
+/* Settings view */
+.settings-content {
+  padding: 16px;
+}
+
+.settings-content h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 0;
+}

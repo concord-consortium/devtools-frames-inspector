@@ -37,6 +37,11 @@ let currentView = 'messages';
 let frames = [];
 let selectedFrameId = null;
 
+// Settings state
+let settings = {
+  showExtraMessageInfo: false
+};
+
 // DOM elements
 const headerRow = document.getElementById('header-row');
 const messageTbody = document.getElementById('message-tbody');
@@ -56,11 +61,13 @@ const recordBtn = document.getElementById('record-btn');
 const sidebar = document.querySelector('.sidebar');
 const messagesView = document.getElementById('messages-view');
 const hierarchyView = document.getElementById('hierarchy-view');
+const settingsView = document.getElementById('settings-view');
 const refreshHierarchyBtn = document.getElementById('refresh-hierarchy-btn');
 const frameTbody = document.getElementById('frame-tbody');
 const frameDetailPane = document.getElementById('frame-detail-pane');
 const frameDetailContent = document.getElementById('frame-detail-content');
 const closeFrameDetailBtn = document.getElementById('close-frame-detail-btn');
+const showExtraInfoCheckbox = document.getElementById('show-extra-info-checkbox');
 
 // Initialize visible columns from defaults or storage
 function initColumns() {
@@ -456,17 +463,29 @@ function renderJsonValue(value, key = null) {
 function renderContextTab(msg) {
   const sourceType = msg.source?.type || 'unknown';
 
-  const rows = [
-    ['Message ID', msg.id],
+  const rows = [];
+
+  // Extra info rows (conditionally shown)
+  if (settings.showExtraMessageInfo) {
+    rows.push(['Message ID', msg.id]);
+  }
+
+  rows.push(
     ['Timestamp', new Date(msg.timestamp).toISOString()],
-    ['Size', formatSize(msg.dataSize)],
-    ['Buffered', msg.buffered ? 'Yes' : 'No'],
+    ['Size', formatSize(msg.dataSize)]
+  );
+
+  if (settings.showExtraMessageInfo) {
+    rows.push(['Buffered', msg.buffered ? 'Yes' : 'No']);
+  }
+
+  rows.push(
     ['', ''], // Separator
     ['Target URL', msg.target.url],
     ['Target Origin', msg.target.origin],
     ['Target Title', msg.target.documentTitle || '(none)'],
-    ['Target Frame', msg.target.frameId !== undefined ? `frame[${msg.target.frameId}]` : '(unknown)'],
-  ];
+    ['Target Frame', msg.target.frameId !== undefined ? `frame[${msg.target.frameId}]` : '(unknown)']
+  );
 
   // Add target frame info error if present
   if (msg.target.frameInfoError) {
@@ -698,6 +717,7 @@ function switchView(viewName) {
   // Update views
   messagesView.classList.toggle('active', viewName === 'messages');
   hierarchyView.classList.toggle('active', viewName === 'hierarchy');
+  settingsView.classList.toggle('active', viewName === 'settings');
 
   // Save preference
   chrome.storage.local.set({ currentView: viewName });
@@ -885,9 +905,38 @@ function connect() {
   });
 }
 
+// Initialize settings
+function initSettings() {
+  chrome.storage.local.get(['settings'], (result) => {
+    if (result.settings) {
+      settings = { ...settings, ...result.settings };
+    }
+    showExtraInfoCheckbox.checked = settings.showExtraMessageInfo;
+  });
+}
+
+// Save settings
+function saveSettings() {
+  chrome.storage.local.set({ settings });
+}
+
+// Settings event handlers
+showExtraInfoCheckbox.addEventListener('change', (e) => {
+  settings.showExtraMessageInfo = e.target.checked;
+  saveSettings();
+  // Re-render detail pane if a message is selected
+  if (selectedMessageId && activeTab === 'context') {
+    const msg = messages.find(m => m.id === selectedMessageId);
+    if (msg) {
+      renderContextTab(msg);
+    }
+  }
+});
+
 // Initialize
 initColumnWidths();
 initColumns();
+initSettings();
 detailPane.classList.add('hidden');
 
 // Load saved view preference
