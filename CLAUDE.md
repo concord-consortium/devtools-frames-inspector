@@ -63,3 +63,7 @@ injected.js ──CustomEvent──►    content.js ──runtime.msg──► 
 - `sourceType:parent` / `sourceType:child` / `sourceType:self` / `sourceType:opener` / `sourceType:top` - Filter by source type
 - `-term` - Exclude messages containing term
 - Plain text - Search in data preview
+
+## Workflow Preferences
+
+- **Design documents:** After generating a design/plan document, show it to the user for review before committing. Do not auto-commit design docs.

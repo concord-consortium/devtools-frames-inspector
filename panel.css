@@ -632,3 +632,53 @@ body {
   user-select: none;
   padding: 8px 0;
 }
+
+/* Field info popup */
+.field-info-popup {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  padding: 12px;
+  max-width: 300px;
+  z-index: 1001;
+  display: none;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.field-info-popup.visible {
+  display: block;
+}
+
+.field-info-popup .field-description {
+  color: #303942;
+  margin-bottom: 8px;
+}
+
+.field-info-popup .field-technical {
+  color: #5f6368;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.field-info-popup .field-filter {
+  font-size: 11px;
+}
+
+.field-info-popup .field-filter code {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  background: #f3f3f3;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+/* Hoverable field label in context table */
+.context-table .has-info {
+  cursor: help;
+}
+
+.context-table .has-info:hover {
+  color: #1a73e8;
+}

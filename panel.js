@@ -42,6 +42,14 @@ let settings = {
   showExtraMessageInfo: false
 };
 
+// Field info popup state
+let popupShowTimeout = null;
+let popupHideTimeout = null;
+let isMouseOverPopup = false;
+let isMouseOverLabel = false;
+let currentPopupFieldId = null;
+let currentPopupLabelElement = null;
+
 // DOM elements
 const headerRow = document.getElementById('header-row');
 const messageTbody = document.getElementById('message-tbody');
@@ -68,6 +76,7 @@ const frameDetailPane = document.getElementById('frame-detail-pane');
 const frameDetailContent = document.getElementById('frame-detail-content');
 const closeFrameDetailBtn = document.getElementById('close-frame-detail-btn');
 const showExtraInfoCheckbox = document.getElementById('show-extra-info-checkbox');
+const fieldInfoPopup = document.getElementById('field-info-popup');
 
 // Initialize visible columns from defaults or storage
 function initColumns() {
@@ -463,69 +472,122 @@ function renderJsonValue(value, key = null) {
 function renderContextTab(msg) {
   const sourceType = msg.source?.type || 'unknown';
 
+  // Each row is [fieldId, value] where fieldId maps to FIELD_INFO
   const rows = [];
 
   // Extra info rows (conditionally shown)
   if (settings.showExtraMessageInfo) {
-    rows.push(['Message ID', msg.id]);
+    rows.push(['messageId', msg.id]);
   }
 
   rows.push(
-    ['Timestamp', new Date(msg.timestamp).toISOString()],
-    ['Size', formatSize(msg.dataSize)]
+    ['timestamp', new Date(msg.timestamp).toISOString()],
+    ['dataSize', formatSize(msg.dataSize)]
   );
 
   if (settings.showExtraMessageInfo) {
-    rows.push(['Buffered', msg.buffered ? 'Yes' : 'No']);
+    rows.push(['buffered', msg.buffered ? 'Yes' : 'No']);
   }
 
   rows.push(
-    ['', ''], // Separator
-    ['Target URL', msg.target.url],
-    ['Target Origin', msg.target.origin],
-    ['Target Title', msg.target.documentTitle || '(none)'],
-    ['Target Frame', msg.target.frameId !== undefined ? `frame[${msg.target.frameId}]` : '(unknown)']
+    [null, null], // Separator
+    ['targetUrl', msg.target.url],
+    ['targetOrigin', msg.target.origin],
+    ['targetTitle', msg.target.documentTitle || '(none)'],
+    ['targetFrame', msg.target.frameId !== undefined ? `frame[${msg.target.frameId}]` : '(unknown)']
   );
 
   // Add target frame info error if present
   if (msg.target.frameInfoError) {
-    rows.push(['Target Frame Error', msg.target.frameInfoError]);
+    rows.push(['targetFrameError', msg.target.frameInfoError]);
   }
 
   rows.push(
-    ['', ''], // Separator
-    ['Source Type', `${getDirectionIcon(sourceType)} ${sourceType}`],
-    ['Source Origin', msg.source?.origin || '(unknown)'],
+    [null, null], // Separator
+    ['sourceType', `${getDirectionIcon(sourceType)} ${sourceType}`],
+    ['sourceOrigin', msg.source?.origin || '(unknown)'],
   );
 
   // Add source frame ID if available
   if (msg.source?.frameId !== undefined) {
-    rows.push(['Source Frame', `frame[${msg.source.frameId}]`]);
+    rows.push(['sourceFrame', `frame[${msg.source.frameId}]`]);
   }
 
   // Add iframe-specific rows for child sources
   if (sourceType === 'child') {
     if (msg.source?.iframeSrc) {
-      rows.push(['Source iframe src', msg.source.iframeSrc]);
+      rows.push(['sourceIframeSrc', msg.source.iframeSrc]);
     }
     if (msg.source?.iframeId) {
-      rows.push(['Source iframe id', msg.source.iframeId]);
+      rows.push(['sourceIframeId', msg.source.iframeId]);
     }
     if (msg.source?.iframeDomPath) {
-      rows.push(['Source iframe path', msg.source.iframeDomPath]);
+      rows.push(['sourceIframeDomPath', msg.source.iframeDomPath]);
     }
   }
 
   const table = document.createElement('table');
   table.className = 'context-table';
 
-  rows.forEach(([label, value]) => {
+  rows.forEach(([fieldId, value]) => {
     const tr = document.createElement('tr');
-    if (label === '' && value === '') {
+    if (fieldId === null && value === null) {
       // Separator row
       tr.innerHTML = '<td colspan="2" class="context-separator"></td>';
     } else {
-      tr.innerHTML = `<th>${label}</th><td>${value}</td>`;
+      const fieldInfo = FIELD_INFO[fieldId];
+      const label = fieldInfo ? fieldInfo.label : fieldId;
+
+      const th = document.createElement('th');
+      if (fieldInfo) {
+        // Wrap label in span for precise hover targeting
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = label;
+        labelSpan.classList.add('has-info');
+        labelSpan.dataset.fieldId = fieldId;
+
+        labelSpan.addEventListener('mouseenter', () => {
+          isMouseOverLabel = true;
+          // Clear any pending hide
+          if (popupHideTimeout) {
+            clearTimeout(popupHideTimeout);
+            popupHideTimeout = null;
+          }
+          // Clear any pending show timeout
+          if (popupShowTimeout) {
+            clearTimeout(popupShowTimeout);
+          }
+          // If popup is already showing for this field, keep it visible
+          if (currentPopupFieldId === fieldId) {
+            return;
+          }
+          // Delay showing popup
+          popupShowTimeout = setTimeout(() => {
+            showFieldInfoPopup(fieldId, labelSpan);
+          }, 200);
+        });
+
+        labelSpan.addEventListener('mouseleave', () => {
+          isMouseOverLabel = false;
+          // Clear pending show
+          if (popupShowTimeout) {
+            clearTimeout(popupShowTimeout);
+            popupShowTimeout = null;
+          }
+          // Delay hide check to allow mouse to enter popup
+          popupHideTimeout = setTimeout(checkPopupVisibility, 50);
+        });
+
+        th.appendChild(labelSpan);
+      } else {
+        th.textContent = label;
+      }
+
+      const td = document.createElement('td');
+      td.textContent = value;
+
+      tr.appendChild(th);
+      tr.appendChild(td);
     }
     table.appendChild(tr);
   });
@@ -533,6 +595,104 @@ function renderContextTab(msg) {
   tabContent.innerHTML = '';
   tabContent.appendChild(table);
 }
+
+// Show field info popup
+function showFieldInfoPopup(fieldId, labelElement) {
+  const fieldInfo = FIELD_INFO[fieldId];
+  if (!fieldInfo) return;
+
+  // Build popup content
+  let html = `<div class="field-description">${fieldInfo.description}</div>`;
+  if (fieldInfo.technical) {
+    html += `<div class="field-technical">${fieldInfo.technical}</div>`;
+  }
+  if (fieldInfo.filter) {
+    html += `<div class="field-filter">Filter: <code>${fieldInfo.filter}</code></div>`;
+  }
+  fieldInfoPopup.innerHTML = html;
+
+  // Position popup below label, right-aligned (flip above if no room below)
+  const labelRect = labelElement.getBoundingClientRect();
+
+  // Make visible to measure
+  fieldInfoPopup.classList.add('visible');
+  const popupRect = fieldInfoPopup.getBoundingClientRect();
+
+  // Calculate position: right edge aligns with label right edge
+  const left = labelRect.right - popupRect.width;
+
+  // Check if popup fits below label, otherwise flip above
+  let top;
+  if (labelRect.bottom + popupRect.height <= window.innerHeight) {
+    // Fits below - no gap
+    top = labelRect.bottom;
+  } else {
+    // Flip above - no gap
+    top = labelRect.top - popupRect.height;
+  }
+
+  fieldInfoPopup.style.left = Math.max(0, left) + 'px';
+  fieldInfoPopup.style.top = Math.max(0, top) + 'px';
+
+  currentPopupFieldId = fieldId;
+  currentPopupLabelElement = labelElement;
+}
+
+// Hide field info popup
+function hideFieldInfoPopup() {
+  fieldInfoPopup.classList.remove('visible');
+  currentPopupFieldId = null;
+  currentPopupLabelElement = null;
+}
+
+// Check if popup should remain visible
+function checkPopupVisibility() {
+  if (!isMouseOverPopup && !isMouseOverLabel) {
+    hideFieldInfoPopup();
+  }
+}
+
+// Update popup position (used on scroll)
+function updatePopupPosition() {
+  if (!currentPopupLabelElement) return;
+
+  const labelRect = currentPopupLabelElement.getBoundingClientRect();
+  const popupRect = fieldInfoPopup.getBoundingClientRect();
+
+  const left = labelRect.right - popupRect.width;
+
+  // Check if popup fits below label, otherwise flip above
+  let top;
+  if (labelRect.bottom + popupRect.height <= window.innerHeight) {
+    top = labelRect.bottom;
+  } else {
+    top = labelRect.top - popupRect.height;
+  }
+
+  fieldInfoPopup.style.left = Math.max(0, left) + 'px';
+  fieldInfoPopup.style.top = Math.max(0, top) + 'px';
+}
+
+// Popup hover listeners
+fieldInfoPopup.addEventListener('mouseenter', () => {
+  isMouseOverPopup = true;
+  // Clear any pending hide
+  if (popupHideTimeout) {
+    clearTimeout(popupHideTimeout);
+    popupHideTimeout = null;
+  }
+});
+
+fieldInfoPopup.addEventListener('mouseleave', () => {
+  isMouseOverPopup = false;
+  // Delay hide check to allow mouse to enter label
+  popupHideTimeout = setTimeout(checkPopupVisibility, 50);
+});
+
+// Update popup position on scroll
+tabContent.addEventListener('scroll', () => {
+  updatePopupPosition();
+});
 
 // Show column menu
 function showColumnMenu(e) {
