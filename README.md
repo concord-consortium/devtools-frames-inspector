@@ -1,6 +1,6 @@
-# PostMessage DevTools Extension
+# Frames Inspector
 
-A Chrome DevTools extension that inspects postMessage communication between iframes, providing a Network-tab-like experience with a sortable/filterable table and detail panel.
+A Chrome DevTools extension for inspecting frames and postMessage communication between iframes, providing a Network-tab-like experience with a sortable/filterable table and detail panel.
 
 ## Features
 
@@ -17,7 +17,7 @@ A Chrome DevTools extension that inspects postMessage communication between ifra
 ├── manifest.json      # Chrome extension manifest (Manifest V3)
 ├── devtools.html      # DevTools page entry point
 ├── devtools.js        # DevTools panel initialization
-├── panel.html         # The PostMessage panel UI
+├── panel.html         # The Frames panel UI
 ├── panel.css          # Panel styles (DevTools-like appearance)
 ├── panel.js           # Panel logic (table, filtering, detail view)
 ├── injected.js        # Injected into page context (postMessage interception)
@@ -32,12 +32,12 @@ A Chrome DevTools extension that inspects postMessage communication between ifra
 2. Open Chrome and navigate to `chrome://extensions/`
 3. Enable "Developer mode" (toggle in top right)
 4. Click "Load unpacked" and select the project folder
-5. Open DevTools on any page - you'll see a "PostMessage" tab
+5. Open DevTools on any page - you'll see a "Frames" tab
 
 ## Usage
 
 1. Open DevTools (F12 or right-click → Inspect)
-2. Navigate to the "PostMessage" tab
+2. Navigate to the "Frames" tab
 3. Interact with the page to generate postMessage traffic
 4. Messages appear in the table as they're captured
 
@@ -64,7 +64,7 @@ cd test && python -m http.server 8000
 
 The extension is designed to be minimally invasive:
 
-- **On-demand injection**: Scripts are only injected into pages when you open the PostMessage panel for that tab. Pages you don't inspect remain untouched.
+- **On-demand injection**: Scripts are only injected into pages when you open the Frames panel for that tab. Pages you don't inspect remain untouched.
 - **Popup capture**: When you open a popup from a monitored tab, the extension automatically enables monitoring for the popup and buffers early messages until you view its panel.
 - **Persistent monitoring**: Once enabled, monitoring stays active even when the panel isn't visible or DevTools is closed. **Reload the page to disable monitoring.**
 

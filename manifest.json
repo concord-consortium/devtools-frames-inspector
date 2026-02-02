@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "PostMessage DevTools",
+  "name": "Frames Inspector",
   "version": "1.0.0",
-  "description": "A Chrome DevTools extension that exposes postMessage messages similar to the Network tab",
+  "description": "Chrome DevTools extension for inspecting frames and postMessage communication",
   "devtools_page": "devtools.html",
   "background": {
     "service_worker": "background.js"

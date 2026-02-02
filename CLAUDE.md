@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Chrome DevTools extension (Manifest V3) for inspecting postMessage communication between iframes. Provides a Network-tab-like UI with sortable/filterable table and detail panel.
+Frames Inspector - Chrome DevTools extension (Manifest V3) for inspecting frames and postMessage communication between iframes. Provides a Network-tab-like UI with sortable/filterable table and detail panel.
 
 ## Development
 
@@ -14,7 +14,7 @@ No build system - vanilla JavaScript. Load as unpacked extension in Chrome.
 ```bash
 cd test && python -m http.server 8000
 # Open http://localhost:8000/test-page.html in Chrome
-# DevTools → PostMessage tab to see captured messages
+# DevTools → Frames tab to see captured messages
 ```
 
 **Reload after changes:** Go to `chrome://extensions/` and click the refresh icon on the extension.
@@ -25,7 +25,7 @@ cd test && python -m http.server 8000
 
 The extension uses programmatic script injection to minimize impact on pages:
 
-- Scripts are injected only when the PostMessage panel is opened for a tab
+- Scripts are injected only when the Frames panel is opened for a tab
 - Popups opened from monitored tabs get buffering enabled automatically (captures early messages before panel connects)
 - Once monitoring starts, it persists until page reload (even if DevTools closes)
 

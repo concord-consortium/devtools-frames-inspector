@@ -1,4 +1,4 @@
-// Panel logic for displaying postMessage messages
+// Panel logic for Frames Inspector
 
 // Column definitions
 const ALL_COLUMNS = [

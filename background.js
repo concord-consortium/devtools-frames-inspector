@@ -1,4 +1,4 @@
-// Service worker for PostMessage DevTools
+// Service worker for Frames Inspector
 // Routes messages between content scripts and DevTools panel
 
 // Store panel connections by tab ID

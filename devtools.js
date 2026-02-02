@@ -1,6 +1,6 @@
-// Create the PostMessage panel in DevTools
+// Create the Frames panel in DevTools
 chrome.devtools.panels.create(
-  'PostMessage',
+  'Frames',
   null, // No icon for now
   'panel.html',
   (panel) => {

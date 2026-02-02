@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>PostMessage Test Page</title>
+  <title>Frames Inspector Test Page</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
     iframe { border: 1px solid #ccc; margin: 10px 0; }
@@ -11,7 +11,7 @@
   </style>
 </head>
 <body>
-  <h1>PostMessage DevTools Test Page</h1>
+  <h1>Frames Inspector Test Page</h1>
 
   <div class="controls">
     <h3>Send from Main Page</h3>
@@ -44,7 +44,7 @@
   <div class="controls">
     <h3>Navigation Testing</h3>
     <button onclick="navigateToSelf()">Navigate to this page (new URL)</button>
-    <span>Open PostMessage panel first, then click to test injection during navigation</span>
+    <span>Open Frames panel first, then click to test injection during navigation</span>
   </div>
 
   <div id="dynamic-iframe-container"></div>
@@ -150,7 +150,7 @@
 
     function addDelayedIframe() {
       const status = document.getElementById('dynamic-iframe-status');
-      status.textContent = 'Adding iframe in 2 seconds... (open PostMessage panel now!)';
+      status.textContent = 'Adding iframe in 2 seconds... (open Frames panel now!)';
 
       setTimeout(() => {
         const container = document.getElementById('dynamic-iframe-container');
