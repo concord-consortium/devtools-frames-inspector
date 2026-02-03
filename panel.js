@@ -39,8 +39,13 @@ let selectedFrameId = null;
 
 // Settings state
 let settings = {
-  showExtraMessageInfo: false
+  showExtraMessageInfo: false,
+  enableFrameRegistration: true,
+  showRegistrationMessages: false
 };
+
+// Map windowId -> {frameId, tabId} from registration messages
+const windowFrameMap = new Map();
 
 // Field info popup state
 let popupShowTimeout = null;
@@ -76,6 +81,8 @@ const frameDetailPane = document.getElementById('frame-detail-pane');
 const frameDetailContent = document.getElementById('frame-detail-content');
 const closeFrameDetailBtn = document.getElementById('close-frame-detail-btn');
 const showExtraInfoCheckbox = document.getElementById('show-extra-info-checkbox');
+const enableFrameRegistrationCheckbox = document.getElementById('enable-frame-registration-checkbox');
+const showRegistrationMessagesCheckbox = document.getElementById('show-registration-messages-checkbox');
 const fieldInfoPopup = document.getElementById('field-info-popup');
 
 // Initialize visible columns from defaults or storage
@@ -115,6 +122,11 @@ function formatSize(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+// Check if a message is a registration message
+function isRegistrationMessage(msg) {
+  return msg.data?.type === '__frames_inspector_register__';
+}
+
 // Get direction icon based on sourceType
 function getDirectionIcon(sourceType) {
   switch (sourceType) {
@@ -137,7 +149,16 @@ function getCellValue(msg, colId) {
     case 'targetTitle': return msg.target.documentTitle || '';
     case 'sourceOrigin': return msg.source?.origin || '';
     case 'sourceType': return msg.source?.type || '';
-    case 'sourceFrameId': return msg.source?.frameId !== undefined ? `frame[${msg.source.frameId}]` : '';
+    case 'sourceFrameId': {
+      let frameId = msg.source?.frameId;
+      if (frameId === undefined && msg.source?.windowId) {
+        const registration = windowFrameMap.get(msg.source.windowId);
+        if (registration) {
+          frameId = registration.frameId;
+        }
+      }
+      return frameId !== undefined ? `frame[${frameId}]` : '';
+    }
     case 'sourceIframeSrc': return msg.source?.iframeSrc || '';
     case 'sourceIframeId': return msg.source?.iframeId || '';
     case 'sourceIframeDomPath': return msg.source?.iframeDomPath || '';
@@ -294,7 +315,13 @@ function handleSort(colId) {
 // Apply filter and sort to messages
 function applyFilterAndSort() {
   // Filter
-  filteredMessages = messages.filter(msg => matchesFilter(msg, filterText));
+  filteredMessages = messages.filter(msg => {
+    // Filter out registration messages if setting is disabled
+    if (isRegistrationMessage(msg) && !settings.showRegistrationMessages) {
+      return false;
+    }
+    return matchesFilter(msg, filterText);
+  });
 
   // Sort
   filteredMessages.sort((a, b) => {
@@ -482,11 +509,15 @@ function renderContextTab(msg) {
 
   rows.push(
     ['timestamp', new Date(msg.timestamp).toISOString()],
+    ['messageType', msg.messageType || '(none)'],
     ['dataSize', formatSize(msg.dataSize)]
   );
 
   if (settings.showExtraMessageInfo) {
     rows.push(['buffered', msg.buffered ? 'Yes' : 'No']);
+    if (msg.source?.windowId) {
+      rows.push(['windowId', msg.source.windowId]);
+    }
   }
 
   rows.push(
@@ -508,9 +539,23 @@ function renderContextTab(msg) {
     ['sourceOrigin', msg.source?.origin || '(unknown)'],
   );
 
-  // Add source frame ID if available
-  if (msg.source?.frameId !== undefined) {
-    rows.push(['sourceFrame', `frame[${msg.source.frameId}]`]);
+  // Add source frame ID and tab ID if available (from message or windowFrameMap lookup)
+  let sourceFrameId = msg.source?.frameId;
+  let sourceTabId = undefined;
+  if (msg.source?.windowId) {
+    const registration = windowFrameMap.get(msg.source.windowId);
+    if (registration) {
+      if (sourceFrameId === undefined) {
+        sourceFrameId = registration.frameId;
+      }
+      sourceTabId = registration.tabId;
+    }
+  }
+  if (sourceFrameId !== undefined) {
+    rows.push(['sourceFrame', `frame[${sourceFrameId}]`]);
+  }
+  if (sourceTabId !== undefined) {
+    rows.push(['sourceTab', `tab[${sourceTabId}]`]);
   }
 
   // Add iframe-specific rows for child sources
@@ -778,6 +823,15 @@ filterByValue.addEventListener('click', () => {
 // Add a new message
 function addMessage(msg) {
   if (!isRecording) return;
+
+  // Process registration messages to build windowFrameMap
+  if (isRegistrationMessage(msg) && msg.source?.windowId) {
+    windowFrameMap.set(msg.source.windowId, {
+      frameId: msg.data.frameId,
+      tabId: msg.data.tabId
+    });
+  }
+
   messages.push(msg);
   applyFilterAndSort();
   renderMessages();
@@ -1072,6 +1126,9 @@ function initSettings() {
       settings = { ...settings, ...result.settings };
     }
     showExtraInfoCheckbox.checked = settings.showExtraMessageInfo;
+    enableFrameRegistrationCheckbox.checked = settings.enableFrameRegistration;
+    showRegistrationMessagesCheckbox.checked = settings.showRegistrationMessages;
+    showRegistrationMessagesCheckbox.disabled = !settings.enableFrameRegistration;
   });
 }
 
@@ -1091,6 +1148,21 @@ showExtraInfoCheckbox.addEventListener('change', (e) => {
       renderContextTab(msg);
     }
   }
+});
+
+enableFrameRegistrationCheckbox.addEventListener('change', (e) => {
+  settings.enableFrameRegistration = e.target.checked;
+  showRegistrationMessagesCheckbox.disabled = !e.target.checked;
+  saveSettings();
+  // Notify background of setting change
+  chrome.storage.local.set({ enableFrameRegistration: e.target.checked });
+});
+
+showRegistrationMessagesCheckbox.addEventListener('change', (e) => {
+  settings.showRegistrationMessages = e.target.checked;
+  saveSettings();
+  applyFilterAndSort();
+  renderMessages();
 });
 
 // Initialize

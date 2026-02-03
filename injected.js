@@ -8,6 +8,8 @@
 
   const EVENT_NAME = '__postmessage_devtools__';
 
+  const sourceWindows = new WeakMap(); // Window -> {windowId}
+
   // Collect target frame info (the frame receiving the message)
   function getTargetInfo() {
     return {
@@ -49,6 +51,18 @@
       id += alphabet[bytes[i] & 63];
     }
     return id;
+  }
+
+  // Get or create a stable windowId for a source window
+  function getWindowId(sourceWindow) {
+    if (!sourceWindow) return null;
+
+    let entry = sourceWindows.get(sourceWindow);
+    if (!entry) {
+      entry = { windowId: generateId() };
+      sourceWindows.set(sourceWindow, entry);
+    }
+    return entry.windowId;
   }
 
   // Create data preview (truncated string representation)
@@ -99,6 +113,7 @@
     const source = {
       type: sourceType,
       origin: event.origin,
+      windowId: getWindowId(event.source),
       iframeSrc: null,
       iframeId: null,
       iframeDomPath: null
@@ -129,6 +144,11 @@
 
   // Listen for incoming messages
   window.addEventListener('message', (event) => {
+    // Stop propagation of registration messages to prevent app from seeing them
+    if (event.data?.type === '__frames_inspector_register__') {
+      event.stopImmediatePropagation();
+    }
+
     const capturedMessage = {
       id: generateId(),
       timestamp: Date.now(),

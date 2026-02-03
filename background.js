@@ -45,12 +45,41 @@ async function injectContentScript(tabId, frameId = null) {
       injectImmediately: true
     });
 
-    // Mark as injected
+    // Mark as injected and send frame info
     if (frameId !== null) {
       injectedFrames.get(tabId).add(frameId);
+      sendFrameInfo(tabId, frameId);
+    } else {
+      // For allFrames injection, get all frames and send info to each
+      const frames = await chrome.webNavigation.getAllFrames({ tabId });
+      if (frames) {
+        for (const frame of frames) {
+          injectedFrames.get(tabId).add(frame.frameId);
+          sendFrameInfo(tabId, frame.frameId);
+        }
+      }
     }
   } catch (e) {
     // Injection can fail for chrome:// pages, etc.
+  }
+}
+
+// Send frame info to content script for registration (if enabled)
+async function sendFrameInfo(tabId, frameId) {
+  try {
+    const result = await chrome.storage.local.get(['enableFrameRegistration']);
+    // Default to true if not set
+    const enabled = result.enableFrameRegistration !== false;
+
+    if (enabled) {
+      await chrome.tabs.sendMessage(tabId, {
+        type: 'frame-info',
+        frameId: frameId,
+        tabId: tabId
+      }, { frameId: frameId });
+    }
+  } catch (e) {
+    // Content script may not be ready yet, ignore
   }
 }
 

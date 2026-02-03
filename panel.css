@@ -633,6 +633,15 @@ body {
   padding: 8px 0;
 }
 
+.settings-item.nested {
+  margin-left: 24px;
+}
+
+.settings-item.nested input:disabled + span,
+.settings-item.nested:has(input:disabled) {
+  opacity: 0.5;
+}
+
 /* Field info popup */
 .field-info-popup {
   position: fixed;

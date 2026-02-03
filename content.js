@@ -8,6 +8,8 @@
 
   const EVENT_NAME = '__postmessage_devtools__';
 
+  let frameInfo = null; // {frameId, tabId} received from background
+
   // Inject the script into the page's main world
   function injectScript() {
     const script = document.createElement('script');
@@ -16,6 +18,33 @@
       this.remove();
     };
     (document.head || document.documentElement).appendChild(script);
+  }
+
+  // Send registration messages to parent and opener
+  function sendRegistrationMessages() {
+    if (!frameInfo) return;
+
+    const registrationMessage = {
+      type: '__frames_inspector_register__',
+      frameId: frameInfo.frameId,
+      tabId: frameInfo.tabId
+    };
+
+    // Send to parent if we're in an iframe
+    if (window.parent !== window) {
+      window.parent.postMessage({
+        ...registrationMessage,
+        targetType: 'parent'
+      }, '*');
+    }
+
+    // Send to opener if we were opened by another window
+    if (window.opener) {
+      window.opener.postMessage({
+        ...registrationMessage,
+        targetType: 'opener'
+      }, '*');
+    }
   }
 
   // Listen for messages from the injected script
@@ -68,8 +97,17 @@
     return info;
   }
 
-  // Handle get-frame-info requests from background
+  // Handle messages from background
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'frame-info') {
+      frameInfo = {
+        frameId: message.frameId,
+        tabId: message.tabId
+      };
+      // Wait 500ms before sending registration to ensure parent is ready
+      setTimeout(sendRegistrationMessages, 500);
+    }
+
     if (message.type === 'get-frame-info') {
       const iframes = Array.from(document.querySelectorAll('iframe')).map(iframe => ({
         src: iframe.src || '',
