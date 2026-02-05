@@ -41,7 +41,7 @@ async function injectContentScript(tabId, frameId = null) {
 
     await chrome.scripting.executeScript({
       target,
-      files: ['content.js'],
+      files: ['src/content.js'],
       injectImmediately: true
     });
 

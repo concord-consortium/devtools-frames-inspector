@@ -2,7 +2,7 @@
 chrome.devtools.panels.create(
   'Frames',
   null, // No icon for now
-  'panel.html',
+  'src/panel/panel.html',
   (panel) => {
     // Panel created successfully
   }

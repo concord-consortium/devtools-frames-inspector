@@ -5,13 +5,13 @@
   "description": "Chrome DevTools extension for inspecting frames and postMessage communication",
   "devtools_page": "devtools.html",
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background.js"
   },
   "permissions": ["webNavigation", "storage", "scripting"],
   "host_permissions": ["<all_urls>"],
   "web_accessible_resources": [
     {
-      "resources": ["injected.js"],
+      "resources": ["src/injected.js"],
       "matches": ["<all_urls>"]
     }
   ]
