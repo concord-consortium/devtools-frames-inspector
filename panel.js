@@ -343,6 +343,23 @@ function getSortValue(msg, colId) {
   }
 }
 
+// Parse frame filter value like "frame[123]" or "tab[23].frame[123]"
+// Returns { tabId: number|null, frameId: number } or null if invalid
+function parseFrameFilterValue(value) {
+  // Match "tab[N].frame[M]" or "frame[M]"
+  const fullMatch = value.match(/^tab\[(\d+)\]\.frame\[(\d+)\]$/);
+  if (fullMatch) {
+    return { tabId: parseInt(fullMatch[1], 10), frameId: parseInt(fullMatch[2], 10) };
+  }
+
+  const frameOnlyMatch = value.match(/^frame\[(\d+)\]$/);
+  if (frameOnlyMatch) {
+    return { tabId: null, frameId: parseInt(frameOnlyMatch[1], 10) };
+  }
+
+  return null;
+}
+
 // Check if message matches a single filter term
 function matchesTerm(msg, term) {
   // Check for field:value syntax
@@ -360,6 +377,41 @@ function matchesTerm(msg, term) {
         return (msg.source?.type || 'unknown') === value;
       case 'source':
         return (msg.source?.origin || '').toLowerCase().includes(value);
+      case 'frame': {
+        const parsed = parseFrameFilterValue(value);
+        if (!parsed) return false;
+
+        const filterTabId = parsed.tabId !== null ? parsed.tabId : tabId;
+        const filterFrameId = parsed.frameId;
+
+        // Get source frame/tab info (including windowFrameMap lookup)
+        let sourceFrameId = msg.source?.frameId;
+        let sourceTabId = tabId; // Default to current tab
+        if (msg.source?.windowId) {
+          const registration = windowFrameMap.get(msg.source.windowId);
+          if (registration) {
+            if (sourceFrameId === undefined) {
+              sourceFrameId = registration.frameId;
+            }
+            if (registration.tabId !== undefined) {
+              sourceTabId = registration.tabId;
+            }
+          }
+        }
+
+        // Check if source matches
+        if (sourceFrameId === filterFrameId && sourceTabId === filterTabId) {
+          return true;
+        }
+
+        // Check if target matches (target is always in current tab)
+        const targetFrameId = msg.target.frameId;
+        if (targetFrameId === filterFrameId && tabId === filterTabId) {
+          return true;
+        }
+
+        return false;
+      }
       default:
         return false;
     }

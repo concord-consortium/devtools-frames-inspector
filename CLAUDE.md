@@ -61,6 +61,8 @@ injected.js ──CustomEvent──►    content.js ──runtime.msg──► 
 - `target:value` - Filter by target origin
 - `source:value` - Filter by source origin
 - `sourceType:parent` / `sourceType:child` / `sourceType:self` / `sourceType:opener` / `sourceType:top` - Filter by source type
+- `frame:frame[N]` - Filter by frame ID (matches sourceFrameId or targetFrameId in current tab)
+- `frame:tab[T].frame[N]` - Filter by tab and frame ID (matches sourceTabId/sourceFrameId; targets are always current tab)
 - `-term` - Exclude messages containing term
 - Plain text - Search in data preview
 
