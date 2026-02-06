@@ -17,6 +17,13 @@ body {
   overflow: hidden;
 }
 
+#root {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  overflow: hidden;
+}
+
 /* Top bar */
 .top-bar {
   display: flex;
