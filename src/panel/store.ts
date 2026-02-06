@@ -1,0 +1,384 @@
+// MobX store for Frames Inspector panel
+
+import { makeAutoObservable, reaction } from 'mobx';
+import {
+  CapturedMessage,
+  FrameInfo,
+  Settings,
+  WindowFrameRegistration,
+  ViewType,
+  DetailTabType,
+  SortDirection,
+  ALL_COLUMNS
+} from './types';
+
+class PanelStore {
+  // Tab ID for the inspected window
+  tabId: number = 0;
+
+  // Messages
+  messages: CapturedMessage[] = [];
+  selectedMessageId: string | null = null;
+  filterText = '';
+  sortColumn = 'timestamp';
+  sortDirection: SortDirection = 'asc';
+  isRecording = true;
+  preserveLog = false;
+
+  // UI state
+  currentView: ViewType = 'messages';
+  activeDetailTab: DetailTabType = 'data';
+
+  // Column configuration
+  visibleColumns: Record<string, boolean> = {};
+  columnWidths: Record<string, number> = {};
+
+  // Hierarchy
+  frameHierarchy: FrameInfo[] = [];
+  selectedFrameId: string | number | null = null;
+
+  // Settings
+  settings: Settings = {
+    showExtraMessageInfo: false,
+    enableFrameRegistration: true,
+    showRegistrationMessages: false
+  };
+
+  // Window ID -> Frame registration mapping
+  windowFrameMap = new Map<string, WindowFrameRegistration>();
+
+  constructor() {
+    makeAutoObservable(this);
+    this.initColumnDefaults();
+  }
+
+  // Initialize column defaults
+  private initColumnDefaults(): void {
+    ALL_COLUMNS.forEach(col => {
+      this.visibleColumns[col.id] = col.defaultVisible;
+      this.columnWidths[col.id] = col.width;
+    });
+  }
+
+  // Set tab ID
+  setTabId(tabId: number): void {
+    this.tabId = tabId;
+  }
+
+  // Check if a message is a registration message
+  isRegistrationMessage(msg: CapturedMessage): boolean {
+    return (msg.data as { type?: string })?.type === '__frames_inspector_register__';
+  }
+
+  // Computed: filtered and sorted messages
+  get filteredMessages(): CapturedMessage[] {
+    let result = this.messages.filter(msg => {
+      if (this.isRegistrationMessage(msg) && !this.settings.showRegistrationMessages) {
+        return false;
+      }
+      return this.matchesFilter(msg, this.filterText);
+    });
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      const aVal = this.getSortValue(a, this.sortColumn);
+      const bVal = this.getSortValue(b, this.sortColumn);
+
+      if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }
+
+  // Computed: selected message
+  get selectedMessage(): CapturedMessage | undefined {
+    return this.messages.find(m => m.id === this.selectedMessageId);
+  }
+
+  // Computed: selected frame
+  get selectedFrame(): FrameInfo | undefined {
+    return this.frameHierarchy.find(f => f.frameId === this.selectedFrameId);
+  }
+
+  // Get sortable value for a message
+  private getSortValue(msg: CapturedMessage, colId: string): string | number {
+    switch (colId) {
+      case 'timestamp': return msg.timestamp;
+      case 'dataSize': return msg.dataSize;
+      default: return this.getCellValue(msg, colId).toLowerCase();
+    }
+  }
+
+  // Get cell value for display
+  getCellValue(msg: CapturedMessage, colId: string): string {
+    switch (colId) {
+      case 'timestamp': return this.formatTimestamp(msg.timestamp);
+      case 'direction': return this.getDirectionIcon(msg.source?.type);
+      case 'targetUrl': return msg.target.url;
+      case 'targetOrigin': return msg.target.origin;
+      case 'targetTitle': return msg.target.documentTitle || '';
+      case 'sourceOrigin': return msg.source?.origin || '';
+      case 'sourceType': return msg.source?.type || '';
+      case 'sourceFrameId': {
+        let frameId = msg.source?.frameId;
+        if (frameId === undefined && msg.source?.windowId) {
+          const registration = this.windowFrameMap.get(msg.source.windowId);
+          if (registration) {
+            frameId = registration.frameId;
+          }
+        }
+        return frameId !== undefined ? `frame[${frameId}]` : '';
+      }
+      case 'sourceIframeSrc': return msg.source?.iframeSrc || '';
+      case 'sourceIframeId': return msg.source?.iframeId || '';
+      case 'sourceIframeDomPath': return msg.source?.iframeDomPath || '';
+      case 'messageType': return msg.messageType || '';
+      case 'dataPreview': return msg.dataPreview;
+      case 'dataSize': return this.formatSize(msg.dataSize);
+      default: return '';
+    }
+  }
+
+  // Format timestamp
+  formatTimestamp(ts: number): string {
+    const d = new Date(ts);
+    const h = d.getHours().toString().padStart(2, '0');
+    const m = d.getMinutes().toString().padStart(2, '0');
+    const s = d.getSeconds().toString().padStart(2, '0');
+    const ms = d.getMilliseconds().toString().padStart(3, '0');
+    return `${h}:${m}:${s}.${ms}`;
+  }
+
+  // Format size
+  formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  // Get direction icon
+  getDirectionIcon(sourceType: string | undefined): string {
+    switch (sourceType) {
+      case 'parent': return '↘';
+      case 'top': return '↘';
+      case 'child': return '↖';
+      case 'self': return '↻';
+      case 'opener': return '←';
+      default: return '?';
+    }
+  }
+
+  // Parse frame filter value
+  private parseFrameFilterValue(value: string): { tabId: number | null; frameId: number } | null {
+    const fullMatch = value.match(/^tab\[(\d+)\]\.frame\[(\d+)\]$/);
+    if (fullMatch) {
+      return { tabId: parseInt(fullMatch[1], 10), frameId: parseInt(fullMatch[2], 10) };
+    }
+
+    const frameOnlyMatch = value.match(/^frame\[(\d+)\]$/);
+    if (frameOnlyMatch) {
+      return { tabId: null, frameId: parseInt(frameOnlyMatch[1], 10) };
+    }
+
+    return null;
+  }
+
+  // Check if message matches a single filter term
+  private matchesTerm(msg: CapturedMessage, term: string): boolean {
+    const colonIdx = term.indexOf(':');
+    if (colonIdx > 0) {
+      const field = term.substring(0, colonIdx);
+      const value = term.substring(colonIdx + 1);
+
+      switch (field) {
+        case 'type':
+          return (msg.messageType || '').toLowerCase() === value;
+        case 'target':
+          return msg.target.origin.toLowerCase().includes(value);
+        case 'sourcetype':
+          return (msg.source?.type || 'unknown') === value;
+        case 'source':
+          return (msg.source?.origin || '').toLowerCase().includes(value);
+        case 'frame': {
+          const parsed = this.parseFrameFilterValue(value);
+          if (!parsed) return false;
+
+          const filterTabId = parsed.tabId !== null ? parsed.tabId : this.tabId;
+          const filterFrameId = parsed.frameId;
+
+          let sourceFrameId = msg.source?.frameId;
+          let sourceTabId = this.tabId;
+          if (msg.source?.windowId) {
+            const registration = this.windowFrameMap.get(msg.source.windowId);
+            if (registration) {
+              if (sourceFrameId === undefined) {
+                sourceFrameId = registration.frameId;
+              }
+              if (registration.tabId !== undefined) {
+                sourceTabId = registration.tabId;
+              }
+            }
+          }
+
+          if (sourceFrameId === filterFrameId && sourceTabId === filterTabId) {
+            return true;
+          }
+
+          const targetFrameId = msg.target.frameId;
+          if (targetFrameId === filterFrameId && this.tabId === filterTabId) {
+            return true;
+          }
+
+          return false;
+        }
+        default:
+          return false;
+      }
+    }
+
+    return msg.dataPreview.toLowerCase().includes(term);
+  }
+
+  // Check if message matches filter
+  private matchesFilter(msg: CapturedMessage, filter: string): boolean {
+    if (!filter) return true;
+
+    const terms = filter.toLowerCase().split(/\s+/).filter(t => t);
+
+    return terms.every(term => {
+      if (term.startsWith('-') && term.length > 1) {
+        return !this.matchesTerm(msg, term.substring(1));
+      }
+      return this.matchesTerm(msg, term);
+    });
+  }
+
+  // Actions
+  addMessage(msg: CapturedMessage): void {
+    if (!this.isRecording) return;
+
+    // Handle registration messages
+    if (this.isRegistrationMessage(msg) && msg.source?.windowId) {
+      const data = msg.data as { frameId: number; tabId?: number };
+      this.windowFrameMap.set(msg.source.windowId, {
+        frameId: data.frameId,
+        tabId: data.tabId
+      });
+    }
+
+    this.messages.push(msg);
+  }
+
+  clearMessages(): void {
+    this.messages = [];
+    this.selectedMessageId = null;
+  }
+
+  selectMessage(id: string | null): void {
+    this.selectedMessageId = id;
+  }
+
+  setFilter(text: string): void {
+    this.filterText = text;
+  }
+
+  setSort(column: string): void {
+    if (this.sortColumn === column) {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortColumn = column;
+      this.sortDirection = 'asc';
+    }
+  }
+
+  toggleRecording(): void {
+    this.isRecording = !this.isRecording;
+  }
+
+  setPreserveLog(value: boolean): void {
+    this.preserveLog = value;
+  }
+
+  setCurrentView(view: ViewType): void {
+    this.currentView = view;
+    chrome.storage.local.set({ currentView: view });
+  }
+
+  setActiveDetailTab(tab: DetailTabType): void {
+    this.activeDetailTab = tab;
+  }
+
+  setColumnVisible(columnId: string, visible: boolean): void {
+    this.visibleColumns[columnId] = visible;
+    chrome.storage.local.set({ visibleColumns: this.visibleColumns });
+  }
+
+  setColumnWidth(columnId: string, width: number): void {
+    this.columnWidths[columnId] = width;
+    chrome.storage.local.set({ columnWidths: this.columnWidths });
+  }
+
+  setFrameHierarchy(frames: FrameInfo[]): void {
+    this.frameHierarchy = frames;
+  }
+
+  selectFrame(frameId: string | number | null): void {
+    this.selectedFrameId = frameId;
+  }
+
+  updateSettings(partial: Partial<Settings>): void {
+    this.settings = { ...this.settings, ...partial };
+    chrome.storage.local.set({ settings: this.settings });
+  }
+
+  // Load persisted state from chrome.storage
+  async loadPersistedState(): Promise<void> {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(
+        ['visibleColumns', 'columnWidths', 'settings', 'currentView'],
+        (result) => {
+          if (result.visibleColumns) {
+            this.visibleColumns = { ...this.visibleColumns, ...result.visibleColumns };
+          }
+          if (result.columnWidths) {
+            this.columnWidths = { ...this.columnWidths, ...result.columnWidths };
+          }
+          if (result.settings) {
+            this.settings = { ...this.settings, ...result.settings };
+          }
+          if (result.currentView) {
+            this.currentView = result.currentView;
+          }
+          resolve();
+        }
+      );
+    });
+  }
+
+  // Build tree structure from flat frame list
+  buildFrameTree(): FrameInfo[] {
+    const frameMap = new Map<number | string, FrameInfo>(
+      this.frameHierarchy.map(f => [f.frameId, { ...f, children: [] }])
+    );
+    const roots: FrameInfo[] = [];
+
+    for (const frame of frameMap.values()) {
+      if (frame.parentFrameId === -1) {
+        roots.push(frame);
+      } else {
+        const parent = frameMap.get(frame.parentFrameId);
+        if (parent) {
+          parent.children!.push(frame);
+        } else {
+          roots.push(frame);
+        }
+      }
+    }
+
+    return roots;
+  }
+}
+
+// Create and export singleton store
+export const store = new PanelStore();

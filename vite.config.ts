@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { copyFileSync, mkdirSync, existsSync } from 'fs';
@@ -30,7 +31,7 @@ function copyStaticFiles() {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [copyStaticFiles()],
+  plugins: [react(), copyStaticFiles()],
 
   build: {
     outDir: 'dist',
@@ -38,7 +39,7 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       input: {
         // Panel scripts
-        'panel/panel': resolve(__dirname, 'src/panel/panel.ts'),
+        'panel/panel': resolve(__dirname, 'src/panel/panel.tsx'),
         'panel/field-info': resolve(__dirname, 'src/panel/field-info.ts'),
         // Standalone scripts
         'background': resolve(__dirname, 'src/background.ts'),
