@@ -1,47 +1,7 @@
 // Service worker for Frames Inspector
 // Routes messages between content scripts and DevTools panel
 
-// Types
-interface CapturedMessage {
-  id: string;
-  timestamp: number;
-  target: {
-    url: string;
-    origin: string;
-    documentTitle: string;
-    frameId?: number;
-    frameInfoError?: string;
-  };
-  source: {
-    type: string;
-    origin: string;
-    windowId: string | null;
-    iframeSrc: string | null;
-    iframeId: string | null;
-    iframeDomPath: string | null;
-    frameId?: number;
-    frameInfoError?: string;
-  };
-  data: unknown;
-  dataPreview: string;
-  dataSize: number;
-  messageType: string | null;
-  buffered?: boolean;
-}
-
-interface FrameHierarchyItem {
-  frameId: number | string;
-  url: string;
-  parentFrameId: number;
-  title: string;
-  origin: string;
-  iframes: { src: string; id: string; domPath: string }[];
-  isOpener?: boolean;
-}
-
-interface OpenerInfo {
-  origin: string | null;
-}
+import { CapturedMessage, FrameInfo, FrameInfoResponse, OpenerInfo } from './types';
 
 // Store panel connections by tab ID
 const panelConnections = new Map<number, chrome.runtime.Port>();
@@ -167,7 +127,7 @@ chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
 });
 
 // Get frame hierarchy for a tab
-async function getFrameHierarchy(tabId: number): Promise<FrameHierarchyItem[]> {
+async function getFrameHierarchy(tabId: number): Promise<FrameInfo[]> {
   try {
     // Get all frames from webNavigation
     const webNavFrames = await chrome.webNavigation.getAllFrames({ tabId });
@@ -176,12 +136,12 @@ async function getFrameHierarchy(tabId: number): Promise<FrameHierarchyItem[]> {
     let openerInfo: OpenerInfo | null = null;
 
     // Request frame info from each frame's content script
-    const frameInfoPromises = webNavFrames.map(async (frame): Promise<FrameHierarchyItem> => {
+    const frameInfoPromises = webNavFrames.map(async (frame): Promise<FrameInfo> => {
       try {
         const info = await chrome.tabs.sendMessage(tabId,
           { type: 'get-frame-info' },
           { frameId: frame.frameId }
-        ) as { title?: string; origin?: string; iframes?: { src: string; id: string; domPath: string }[]; opener?: OpenerInfo } | undefined;
+        ) as FrameInfoResponse | undefined;
 
         // Capture opener info from main frame
         if (frame.frameId === 0 && info?.opener) {

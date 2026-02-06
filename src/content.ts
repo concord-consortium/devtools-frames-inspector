@@ -1,6 +1,8 @@
 // Content script - bridges injected.js to the service worker
 // Runs in Chrome's isolated world, has access to chrome.runtime
 
+import { FrameInfoResponse, OpenerInfo } from './types';
+
 // Extend Window interface for our guard property
 declare global {
   interface Window {
@@ -15,12 +17,12 @@ declare global {
 
   const EVENT_NAME = '__postmessage_devtools__';
 
-  interface FrameInfo {
+  interface LocalFrameIdentity {
     frameId: number;
     tabId: number;
   }
 
-  let frameInfo: FrameInfo | null = null;
+  let frameInfo: LocalFrameIdentity | null = null;
 
   // Inject the script into the page's main world
   function injectScript(): void {
@@ -93,10 +95,6 @@ declare global {
     return parts.join(' > ');
   }
 
-  interface OpenerInfo {
-    origin: string | null;
-  }
-
   // Get opener info if available
   function getOpenerInfo(): OpenerInfo | null {
     if (!window.opener) return null;
@@ -111,13 +109,6 @@ declare global {
     }
 
     return info;
-  }
-
-  interface FrameInfoResponse {
-    title: string;
-    origin: string;
-    iframes: { src: string; id: string; domPath: string }[];
-    opener?: OpenerInfo | null;
   }
 
   // Handle messages from background

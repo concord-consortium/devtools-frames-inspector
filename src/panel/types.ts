@@ -1,47 +1,13 @@
-// Shared types for Frames Inspector panel
+// Types for Frames Inspector panel
+
+// Re-export shared types
+export type { CapturedMessage, FrameInfo } from '../types';
 
 export interface ColumnDef {
   id: string;
   label: string;
   defaultVisible: boolean;
   width: number;
-}
-
-export interface CapturedMessage {
-  id: string;
-  timestamp: number;
-  target: {
-    url: string;
-    origin: string;
-    documentTitle?: string;
-    frameId?: number;
-    frameInfoError?: string;
-  };
-  source?: {
-    type: string;
-    origin: string;
-    windowId?: string;
-    iframeSrc?: string;
-    iframeId?: string;
-    iframeDomPath?: string;
-    frameId?: number;
-  };
-  data: unknown;
-  dataPreview: string;
-  dataSize: number;
-  messageType: string | null;
-  buffered?: boolean;
-}
-
-export interface FrameInfo {
-  frameId: number | string;
-  url: string;
-  parentFrameId: number;
-  title: string;
-  origin: string;
-  iframes: { src: string; id: string; domPath: string }[];
-  isOpener?: boolean;
-  children?: FrameInfo[];
 }
 
 export interface Settings {
