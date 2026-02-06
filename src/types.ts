@@ -42,9 +42,30 @@ export interface OpenerInfo {
   origin: string | null;
 }
 
+// Messages sent from background to content script
+export interface FrameIdentityMessage {
+  type: 'frame-identity';
+  frameId: number;
+  tabId: number;
+}
+
+export interface GetFrameInfoMessage {
+  type: 'get-frame-info';
+}
+
 export interface FrameInfoResponse {
   title: string;
   origin: string;
   iframes: { src: string; id: string; domPath: string }[];
   opener?: OpenerInfo | null;
 }
+
+export type BackgroundToContentMessage = FrameIdentityMessage | GetFrameInfoMessage;
+
+// Messages sent from content script to background
+export interface PostMessageCapturedMessage {
+  type: 'postmessage-captured';
+  payload: CapturedMessage;
+}
+
+export type ContentToBackgroundMessage = PostMessageCapturedMessage;

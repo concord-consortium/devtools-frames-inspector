@@ -1,7 +1,7 @@
 // Service worker for Frames Inspector
 // Routes messages between content scripts and DevTools panel
 
-import { CapturedMessage, FrameInfo, FrameInfoResponse, OpenerInfo } from './types';
+import { CapturedMessage, ContentToBackgroundMessage, FrameIdentityMessage, FrameInfo, FrameInfoResponse, GetFrameInfoMessage, OpenerInfo } from './types';
 
 // Store panel connections by tab ID
 const panelConnections = new Map<number, chrome.runtime.Port>();
@@ -47,17 +47,17 @@ async function injectContentScript(tabId: number, frameId: number | null = null)
       injectImmediately: true
     });
 
-    // Mark as injected and send frame info
+    // Mark as injected and send frame identity
     if (frameId !== null) {
       injectedFrames.get(tabId)!.add(frameId);
-      sendFrameInfo(tabId, frameId);
+      sendFrameIdentity(tabId, frameId);
     } else {
-      // For allFrames injection, get all frames and send info to each
+      // For allFrames injection, get all frames and send identity to each
       const frames = await chrome.webNavigation.getAllFrames({ tabId });
       if (frames) {
         for (const frame of frames) {
           injectedFrames.get(tabId)!.add(frame.frameId);
-          sendFrameInfo(tabId, frame.frameId);
+          sendFrameIdentity(tabId, frame.frameId);
         }
       }
     }
@@ -66,19 +66,20 @@ async function injectContentScript(tabId: number, frameId: number | null = null)
   }
 }
 
-// Send frame info to content script for registration (if enabled)
-async function sendFrameInfo(tabId: number, frameId: number): Promise<void> {
+// Send frame identity to content script for registration (if enabled)
+async function sendFrameIdentity(tabId: number, frameId: number): Promise<void> {
   try {
     const result = await chrome.storage.local.get(['enableFrameRegistration']);
     // Default to true if not set
     const enabled = result.enableFrameRegistration !== false;
 
     if (enabled) {
-      await chrome.tabs.sendMessage(tabId, {
-        type: 'frame-info',
+      const message: FrameIdentityMessage = {
+        type: 'frame-identity',
         frameId: frameId,
         tabId: tabId
-      }, { frameId: frameId });
+      };
+      await chrome.tabs.sendMessage(tabId, message, { frameId: frameId });
     }
   } catch {
     // Content script may not be ready yet, ignore
@@ -138,8 +139,9 @@ async function getFrameHierarchy(tabId: number): Promise<FrameInfo[]> {
     // Request frame info from each frame's content script
     const frameInfoPromises = webNavFrames.map(async (frame): Promise<FrameInfo> => {
       try {
+        const message: GetFrameInfoMessage = { type: 'get-frame-info' };
         const info = await chrome.tabs.sendMessage(tabId,
-          { type: 'get-frame-info' },
+          message,
           { frameId: frame.frameId }
         ) as FrameInfoResponse | undefined;
 
@@ -197,7 +199,7 @@ async function getFrameHierarchy(tabId: number): Promise<FrameInfo[]> {
 
 // Handle messages from content scripts
 chrome.runtime.onMessage.addListener((
-  message: { type: string; payload: CapturedMessage },
+  message: ContentToBackgroundMessage,
   sender: chrome.runtime.MessageSender
 ) => {
   if (message.type !== 'postmessage-captured') return;

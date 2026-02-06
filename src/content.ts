@@ -1,7 +1,7 @@
 // Content script - bridges injected.js to the service worker
 // Runs in Chrome's isolated world, has access to chrome.runtime
 
-import { FrameInfoResponse, OpenerInfo } from './types';
+import { BackgroundToContentMessage, CapturedMessage, FrameInfoResponse, OpenerInfo, PostMessageCapturedMessage } from './types';
 
 // Extend Window interface for our guard property
 declare global {
@@ -55,10 +55,11 @@ declare global {
 
   // Listen for messages from the injected script
   window.addEventListener(EVENT_NAME, (event: Event) => {
-    chrome.runtime.sendMessage({
+    const message: PostMessageCapturedMessage = {
       type: 'postmessage-captured',
-      payload: (event as CustomEvent).detail
-    });
+      payload: (event as CustomEvent<CapturedMessage>).detail
+    };
+    chrome.runtime.sendMessage(message);
   });
 
   // Inject immediately
@@ -105,16 +106,16 @@ declare global {
 
   // Handle messages from background
   chrome.runtime.onMessage.addListener((
-    message: { type: string; frameId?: number; tabId?: number },
+    message: BackgroundToContentMessage,
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: FrameInfoResponse) => void
   ) => {
-    if (message.type === 'frame-info') {
+    if (message.type === 'frame-identity') {
       // Wait 500ms before sending registration to ensure parent is ready
       setTimeout(() => sendRegistrationMessages({
         type: '__frames_inspector_register__',
-        frameId: message.frameId!,
-        tabId: message.tabId!
+        frameId: message.frameId,
+        tabId: message.tabId
       }), 500);
     }
 
