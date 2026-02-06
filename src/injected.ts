@@ -1,6 +1,13 @@
 // Injected into page context to intercept postMessage calls
 // Communicates with content script via CustomEvents
 
+// Extend Window interface for our guard property
+declare global {
+  interface Window {
+    __postmessage_devtools_injected__?: boolean;
+  }
+}
+
 (function() {
   // Guard against multiple injections
   if (window.__postmessage_devtools_injected__) return;
@@ -8,7 +15,7 @@
 
   const EVENT_NAME = '__postmessage_devtools__';
 
-  const sourceWindows = new WeakMap(); // Window -> {windowId}
+  const sourceWindows = new WeakMap<Window, { windowId: string }>();
 
   // Collect target frame info (the frame receiving the message)
   function getTargetInfo() {
@@ -20,8 +27,8 @@
   }
 
   // Generate a CSS selector path for an element
-  function getDomPath(element) {
-    const parts = [];
+  function getDomPath(element: Element | null): string {
+    const parts: string[] = [];
     while (element && element.nodeType === Node.ELEMENT_NODE) {
       let selector = element.nodeName.toLowerCase();
       if (element.id) {
@@ -30,7 +37,7 @@
         break; // id is unique, stop here
       }
       // Position among same-type siblings
-      let sibling = element;
+      let sibling: Element | null = element;
       let nth = 1;
       while ((sibling = sibling.previousElementSibling)) {
         if (sibling.nodeName === element.nodeName) nth++;
@@ -43,7 +50,7 @@
   }
 
   // Generate unique ID (12 chars = 72 bits of entropy)
-  function generateId() {
+  function generateId(): string {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
     const bytes = crypto.getRandomValues(new Uint8Array(12));
     let id = '';
@@ -54,19 +61,19 @@
   }
 
   // Get or create a stable windowId for a source window
-  function getWindowId(sourceWindow) {
+  function getWindowId(sourceWindow: Window | MessageEventSource | null): string | null {
     if (!sourceWindow) return null;
 
-    let entry = sourceWindows.get(sourceWindow);
+    let entry = sourceWindows.get(sourceWindow as Window);
     if (!entry) {
       entry = { windowId: generateId() };
-      sourceWindows.set(sourceWindow, entry);
+      sourceWindows.set(sourceWindow as Window, entry);
     }
     return entry.windowId;
   }
 
   // Create data preview (truncated string representation)
-  function createDataPreview(data, maxLength = 100) {
+  function createDataPreview(data: unknown, maxLength = 100): string {
     try {
       const str = JSON.stringify(data);
       if (str.length <= maxLength) return str;
@@ -77,7 +84,7 @@
   }
 
   // Calculate approximate size in bytes
-  function calculateSize(data) {
+  function calculateSize(data: unknown): number {
     try {
       return new Blob([JSON.stringify(data)]).size;
     } catch {
@@ -86,15 +93,15 @@
   }
 
   // Extract message type from data (looks for .type property)
-  function extractMessageType(data) {
-    if (data && typeof data === 'object' && typeof data.type === 'string') {
-      return data.type;
+  function extractMessageType(data: unknown): string | null {
+    if (data && typeof data === 'object' && 'type' in data && typeof (data as { type: unknown }).type === 'string') {
+      return (data as { type: string }).type;
     }
     return null;
   }
 
   // Determine the relationship between this window and the message source
-  function getSourceRelationship(eventSource) {
+  function getSourceRelationship(eventSource: MessageEventSource | null): string {
     if (!eventSource) return 'unknown';
     if (eventSource === window) return 'self';
     if (eventSource === window.parent && window.parent !== window) return 'parent';
@@ -106,11 +113,20 @@
     return 'unknown';
   }
 
+  interface SourceInfo {
+    type: string;
+    origin: string;
+    windowId: string | null;
+    iframeSrc: string | null;
+    iframeId: string | null;
+    iframeDomPath: string | null;
+  }
+
   // Collect source info from a message event
-  function getSourceInfo(event) {
+  function getSourceInfo(event: MessageEvent): SourceInfo {
     const sourceType = getSourceRelationship(event.source);
 
-    const source = {
+    const source: SourceInfo = {
       type: sourceType,
       origin: event.origin,
       windowId: getWindowId(event.source),
@@ -136,14 +152,14 @@
   }
 
   // Send captured message to content script via CustomEvent
-  function sendCapturedMessage(capturedMessage) {
+  function sendCapturedMessage(capturedMessage: unknown): void {
     window.dispatchEvent(new CustomEvent(EVENT_NAME, {
       detail: capturedMessage
     }));
   }
 
   // Listen for incoming messages
-  window.addEventListener('message', (event) => {
+  window.addEventListener('message', (event: MessageEvent) => {
     // Stop propagation of registration messages to prevent app from seeing them
     if (event.data?.type === '__frames_inspector_register__') {
       event.stopImmediatePropagation();
@@ -163,3 +179,5 @@
     sendCapturedMessage(capturedMessage);
   }, true);
 })();
+
+export {};

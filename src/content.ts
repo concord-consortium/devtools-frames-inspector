@@ -1,6 +1,13 @@
 // Content script - bridges injected.js to the service worker
 // Runs in Chrome's isolated world, has access to chrome.runtime
 
+// Extend Window interface for our guard property
+declare global {
+  interface Window {
+    __postmessage_devtools_content__?: boolean;
+  }
+}
+
 (function() {
   // Guard against multiple injections
   if (window.__postmessage_devtools_content__) return;
@@ -8,20 +15,25 @@
 
   const EVENT_NAME = '__postmessage_devtools__';
 
-  let frameInfo = null; // {frameId, tabId} received from background
+  interface FrameInfo {
+    frameId: number;
+    tabId: number;
+  }
+
+  let frameInfo: FrameInfo | null = null;
 
   // Inject the script into the page's main world
-  function injectScript() {
+  function injectScript(): void {
     const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('src/injected.js');
-    script.onload = function() {
-      this.remove();
+    script.src = chrome.runtime.getURL('injected.js');
+    script.onload = () => {
+      script.remove();
     };
     (document.head || document.documentElement).appendChild(script);
   }
 
   // Send registration messages to parent and opener
-  function sendRegistrationMessages() {
+  function sendRegistrationMessages(): void {
     if (!frameInfo) return;
 
     const registrationMessage = {
@@ -48,10 +60,10 @@
   }
 
   // Listen for messages from the injected script
-  window.addEventListener(EVENT_NAME, (event) => {
+  window.addEventListener(EVENT_NAME, (event: Event) => {
     chrome.runtime.sendMessage({
       type: 'postmessage-captured',
-      payload: event.detail
+      payload: (event as CustomEvent).detail
     });
   });
 
@@ -59,8 +71,8 @@
   injectScript();
 
   // Generate a CSS selector path for an element
-  function getDomPath(element) {
-    const parts = [];
+  function getDomPath(element: Element | null): string {
+    const parts: string[] = [];
     while (element && element.nodeType === Node.ELEMENT_NODE) {
       let selector = element.nodeName.toLowerCase();
       if (element.id) {
@@ -69,7 +81,7 @@
         break; // id is unique, stop here
       }
       // Position among same-type siblings
-      let sibling = element;
+      let sibling: Element | null = element;
       let nth = 1;
       while ((sibling = sibling.previousElementSibling)) {
         if (sibling.nodeName === element.nodeName) nth++;
@@ -81,28 +93,43 @@
     return parts.join(' > ');
   }
 
+  interface OpenerInfo {
+    origin: string | null;
+  }
+
   // Get opener info if available
-  function getOpenerInfo() {
+  function getOpenerInfo(): OpenerInfo | null {
     if (!window.opener) return null;
 
-    const info = {};
+    const info: OpenerInfo = { origin: null };
 
     // window.origin is accessible cross-origin (unlike location.origin)
     try {
       info.origin = window.opener.origin;
-    } catch (e) {
+    } catch {
       info.origin = null;
     }
 
     return info;
   }
 
+  interface FrameInfoResponse {
+    title: string;
+    origin: string;
+    iframes: { src: string; id: string; domPath: string }[];
+    opener?: OpenerInfo | null;
+  }
+
   // Handle messages from background
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((
+    message: { type: string; frameId?: number; tabId?: number },
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response: FrameInfoResponse) => void
+  ) => {
     if (message.type === 'frame-info') {
       frameInfo = {
-        frameId: message.frameId,
-        tabId: message.tabId
+        frameId: message.frameId!,
+        tabId: message.tabId!
       };
       // Wait 500ms before sending registration to ensure parent is ready
       setTimeout(sendRegistrationMessages, 500);
@@ -115,7 +142,7 @@
         domPath: getDomPath(iframe)
       }));
 
-      const response = {
+      const response: FrameInfoResponse = {
         title: document.title,
         origin: window.location.origin,
         iframes: iframes
@@ -131,3 +158,5 @@
     return true; // Keep channel open for async response
   });
 })();
+
+export {};

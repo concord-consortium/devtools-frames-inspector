@@ -1,7 +1,65 @@
 // Panel logic for Frames Inspector
 
+import { FIELD_INFO } from './field-info';
+
+// Types
+interface ColumnDef {
+  id: string;
+  label: string;
+  defaultVisible: boolean;
+  width: number;
+}
+
+interface CapturedMessage {
+  id: string;
+  timestamp: number;
+  target: {
+    url: string;
+    origin: string;
+    documentTitle?: string;
+    frameId?: number;
+    frameInfoError?: string;
+  };
+  source?: {
+    type: string;
+    origin: string;
+    windowId?: string;
+    iframeSrc?: string;
+    iframeId?: string;
+    iframeDomPath?: string;
+    frameId?: number;
+  };
+  data: unknown;
+  dataPreview: string;
+  dataSize: number;
+  messageType: string | null;
+  buffered?: boolean;
+}
+
+interface FrameInfo {
+  frameId: number | string;
+  url: string;
+  parentFrameId: number;
+  title: string;
+  origin: string;
+  iframes: { src: string; id: string; domPath: string }[];
+  isOpener?: boolean;
+  children?: FrameInfo[];
+}
+
+interface Settings {
+  showExtraMessageInfo: boolean;
+  enableFrameRegistration: boolean;
+  showRegistrationMessages: boolean;
+}
+
+interface WindowFrameRegistration {
+  frameId: number;
+  tabId?: number;
+}
+
 // Column definitions
-const ALL_COLUMNS = [
+const ALL_COLUMNS: ColumnDef[] = [
   { id: 'timestamp', label: 'Time', defaultVisible: true, width: 90 },
   { id: 'direction', label: 'Dir', defaultVisible: true, width: 40 },
   { id: 'targetUrl', label: 'Target URL', defaultVisible: false, width: 200 },
@@ -19,12 +77,12 @@ const ALL_COLUMNS = [
 ];
 
 // State
-let messages = [];
-let filteredMessages = [];
-let selectedMessageId = null;
-let visibleColumns = {};
+let messages: CapturedMessage[] = [];
+let filteredMessages: CapturedMessage[] = [];
+let selectedMessageId: string | null = null;
+let visibleColumns: Record<string, boolean> = {};
 let sortColumn = 'timestamp';
-let sortDirection = 'asc';
+let sortDirection: 'asc' | 'desc' = 'asc';
 let filterText = '';
 let preserveLog = false;
 let activeTab = 'data';
@@ -33,60 +91,60 @@ let isRecording = true;
 // View state
 let currentView = 'messages';
 
-// Hierarchy state
-let frames = [];
-let selectedFrameId = null;
+// Hierarchy state (renamed from 'frames' to avoid collision with window.frames)
+let frameHierarchy: FrameInfo[] = [];
+let selectedFrameId: number | string | null = null;
 
 // Settings state
-let settings = {
+let settings: Settings = {
   showExtraMessageInfo: false,
   enableFrameRegistration: true,
   showRegistrationMessages: false
 };
 
 // Map windowId -> {frameId, tabId} from registration messages
-const windowFrameMap = new Map();
+const windowFrameMap = new Map<string, WindowFrameRegistration>();
 
 // Field info popup state
-let popupShowTimeout = null;
-let popupHideTimeout = null;
+let popupShowTimeout: ReturnType<typeof setTimeout> | null = null;
+let popupHideTimeout: ReturnType<typeof setTimeout> | null = null;
 let isMouseOverPopup = false;
 let isMouseOverLabel = false;
-let currentPopupFieldId = null;
-let currentPopupLabelElement = null;
+let currentPopupFieldId: string | null = null;
+let currentPopupLabelElement: HTMLElement | null = null;
 
-// DOM elements
-const headerRow = document.getElementById('header-row');
-const messageTbody = document.getElementById('message-tbody');
-const filterInput = document.getElementById('filter-input');
-const clearBtn = document.getElementById('clear-btn');
-const preserveLogCheckbox = document.getElementById('preserve-log-checkbox');
-const detailPane = document.getElementById('detail-pane');
-const tabContent = document.getElementById('tab-content');
-const columnMenu = document.getElementById('column-menu');
-const cellMenu = document.getElementById('cell-menu');
-const filterByValue = document.getElementById('filter-by-value');
-const resizeHandle = document.getElementById('resize-handle');
-const closeDetailBtn = document.getElementById('close-detail-btn');
-const recordBtn = document.getElementById('record-btn');
+// DOM elements (non-null assertions - these elements must exist in the HTML)
+const headerRow = document.getElementById('header-row')!;
+const messageTbody = document.getElementById('message-tbody')!;
+const filterInput = document.getElementById('filter-input') as HTMLInputElement;
+const clearBtn = document.getElementById('clear-btn')!;
+const preserveLogCheckbox = document.getElementById('preserve-log-checkbox') as HTMLInputElement;
+const detailPane = document.getElementById('detail-pane')!;
+const tabContent = document.getElementById('tab-content')!;
+const columnMenu = document.getElementById('column-menu')!;
+const cellMenu = document.getElementById('cell-menu')!;
+const filterByValue = document.getElementById('filter-by-value')!;
+const resizeHandle = document.getElementById('resize-handle')!;
+const closeDetailBtn = document.getElementById('close-detail-btn')!;
+const recordBtn = document.getElementById('record-btn')!;
 
 // Sidebar and view elements
-const sidebar = document.querySelector('.sidebar');
-const messagesView = document.getElementById('messages-view');
-const hierarchyView = document.getElementById('hierarchy-view');
-const settingsView = document.getElementById('settings-view');
-const refreshHierarchyBtn = document.getElementById('refresh-hierarchy-btn');
-const frameTbody = document.getElementById('frame-tbody');
-const frameDetailPane = document.getElementById('frame-detail-pane');
-const frameDetailContent = document.getElementById('frame-detail-content');
-const closeFrameDetailBtn = document.getElementById('close-frame-detail-btn');
-const showExtraInfoCheckbox = document.getElementById('show-extra-info-checkbox');
-const enableFrameRegistrationCheckbox = document.getElementById('enable-frame-registration-checkbox');
-const showRegistrationMessagesCheckbox = document.getElementById('show-registration-messages-checkbox');
-const fieldInfoPopup = document.getElementById('field-info-popup');
+const sidebar = document.querySelector('.sidebar')!;
+const messagesView = document.getElementById('messages-view')!;
+const hierarchyView = document.getElementById('hierarchy-view')!;
+const settingsView = document.getElementById('settings-view')!;
+const refreshHierarchyBtn = document.getElementById('refresh-hierarchy-btn')!;
+const frameTbody = document.getElementById('frame-tbody')!;
+const frameDetailPane = document.getElementById('frame-detail-pane')!;
+const frameDetailContent = document.getElementById('frame-detail-content')!;
+const closeFrameDetailBtn = document.getElementById('close-frame-detail-btn')!;
+const showExtraInfoCheckbox = document.getElementById('show-extra-info-checkbox') as HTMLInputElement;
+const enableFrameRegistrationCheckbox = document.getElementById('enable-frame-registration-checkbox') as HTMLInputElement;
+const showRegistrationMessagesCheckbox = document.getElementById('show-registration-messages-checkbox') as HTMLInputElement;
+const fieldInfoPopup = document.getElementById('field-info-popup')!;
 
 // Initialize visible columns from defaults or storage
-function initColumns() {
+function initColumns(): void {
   ALL_COLUMNS.forEach(col => {
     visibleColumns[col.id] = col.defaultVisible;
   });
@@ -102,12 +160,12 @@ function initColumns() {
 }
 
 // Save column preferences
-function saveColumnPrefs() {
+function saveColumnPrefs(): void {
   chrome.storage.local.set({ visibleColumns });
 }
 
 // Format timestamp
-function formatTimestamp(ts) {
+function formatTimestamp(ts: number): string {
   const d = new Date(ts);
   const h = d.getHours().toString().padStart(2, '0');
   const m = d.getMinutes().toString().padStart(2, '0');
@@ -117,30 +175,30 @@ function formatTimestamp(ts) {
 }
 
 // Format size
-function formatSize(bytes) {
+function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 // Check if a message is a registration message
-function isRegistrationMessage(msg) {
-  return msg.data?.type === '__frames_inspector_register__';
+function isRegistrationMessage(msg: CapturedMessage): boolean {
+  return (msg.data as { type?: string })?.type === '__frames_inspector_register__';
 }
 
 // Get direction icon based on sourceType
-function getDirectionIcon(sourceType) {
+function getDirectionIcon(sourceType: string | undefined): string {
   switch (sourceType) {
-    case 'parent': return '↘';  // From parent (top-left to bottom-right)
-    case 'top': return '↘';     // From top (same as parent)
-    case 'child': return '↖';   // From child (bottom-right to top-left)
-    case 'self': return '↻';    // From self (loop)
-    case 'opener': return '←';  // From opener (right to left)
+    case 'parent': return '↘';
+    case 'top': return '↘';
+    case 'child': return '↖';
+    case 'self': return '↻';
+    case 'opener': return '←';
     default: return '?';
   }
 }
 
 // Get cell value for a message and column
-function getCellValue(msg, colId) {
+function getCellValue(msg: CapturedMessage, colId: string): string {
   switch (colId) {
     case 'timestamp': return formatTimestamp(msg.timestamp);
     case 'direction': return getDirectionIcon(msg.source?.type);
@@ -170,10 +228,10 @@ function getCellValue(msg, colId) {
 }
 
 // Column widths state (persisted)
-let columnWidths = {};
+let columnWidths: Record<string, number> = {};
 
 // Initialize column widths from defaults
-function initColumnWidths() {
+function initColumnWidths(): void {
   ALL_COLUMNS.forEach(col => {
     columnWidths[col.id] = col.width;
   });
@@ -186,12 +244,12 @@ function initColumnWidths() {
 }
 
 // Save column widths
-function saveColumnWidths() {
+function saveColumnWidths(): void {
   chrome.storage.local.set({ columnWidths });
 }
 
 // Render table header
-function renderHeader() {
+function renderHeader(): void {
   headerRow.innerHTML = '';
 
   ALL_COLUMNS.forEach(col => {
@@ -207,30 +265,30 @@ function renderHeader() {
     }
 
     th.addEventListener('click', (e) => {
-      // Don't sort if clicking on resize handle
-      if (!e.target.classList.contains('column-resize-handle')) {
+      const target = e.target as HTMLElement;
+      if (!target.classList.contains('column-resize-handle')) {
         handleSort(col.id);
       }
     });
     th.addEventListener('contextmenu', (e) => showColumnMenu(e));
 
     // Add resize handle
-    const resizeHandle = document.createElement('div');
-    resizeHandle.className = 'column-resize-handle';
-    resizeHandle.addEventListener('mousedown', (e) => startColumnResize(e, col.id, th));
-    th.appendChild(resizeHandle);
+    const handle = document.createElement('div');
+    handle.className = 'column-resize-handle';
+    handle.addEventListener('mousedown', (e) => startColumnResize(e, col.id, th));
+    th.appendChild(handle);
 
     headerRow.appendChild(th);
   });
 }
 
 // Column resize state
-let resizingColumn = null;
-let resizingTh = null;
+let resizingColumn: string | null = null;
+let resizingTh: HTMLElement | null = null;
 let resizeStartX = 0;
 let resizeStartWidth = 0;
 
-function startColumnResize(e, colId, th) {
+function startColumnResize(e: MouseEvent, colId: string, th: HTMLElement): void {
   e.preventDefault();
   e.stopPropagation();
 
@@ -240,11 +298,11 @@ function startColumnResize(e, colId, th) {
   resizeStartWidth = th.offsetWidth;
 
   document.body.style.cursor = 'col-resize';
-  e.target.classList.add('resizing');
+  (e.target as HTMLElement).classList.add('resizing');
 }
 
 document.addEventListener('mousemove', (e) => {
-  if (!resizingColumn) return;
+  if (!resizingColumn || !resizingTh) return;
 
   const diff = e.clientX - resizeStartX;
   const newWidth = Math.max(40, resizeStartWidth + diff);
@@ -266,7 +324,7 @@ document.addEventListener('mouseup', () => {
 });
 
 // Render messages
-function renderMessages() {
+function renderMessages(): void {
   messageTbody.innerHTML = '';
 
   filteredMessages.forEach(msg => {
@@ -299,7 +357,7 @@ function renderMessages() {
 }
 
 // Handle sort
-function handleSort(colId) {
+function handleSort(colId: string): void {
   if (sortColumn === colId) {
     sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
   } else {
@@ -313,10 +371,9 @@ function handleSort(colId) {
 }
 
 // Apply filter and sort to messages
-function applyFilterAndSort() {
+function applyFilterAndSort(): void {
   // Filter
   filteredMessages = messages.filter(msg => {
-    // Filter out registration messages if setting is disabled
     if (isRegistrationMessage(msg) && !settings.showRegistrationMessages) {
       return false;
     }
@@ -325,8 +382,8 @@ function applyFilterAndSort() {
 
   // Sort
   filteredMessages.sort((a, b) => {
-    let aVal = getSortValue(a, sortColumn);
-    let bVal = getSortValue(b, sortColumn);
+    const aVal = getSortValue(a, sortColumn);
+    const bVal = getSortValue(b, sortColumn);
 
     if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
     if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
@@ -335,7 +392,7 @@ function applyFilterAndSort() {
 }
 
 // Get sortable value
-function getSortValue(msg, colId) {
+function getSortValue(msg: CapturedMessage, colId: string): string | number {
   switch (colId) {
     case 'timestamp': return msg.timestamp;
     case 'dataSize': return msg.dataSize;
@@ -344,9 +401,7 @@ function getSortValue(msg, colId) {
 }
 
 // Parse frame filter value like "frame[123]" or "tab[23].frame[123]"
-// Returns { tabId: number|null, frameId: number } or null if invalid
-function parseFrameFilterValue(value) {
-  // Match "tab[N].frame[M]" or "frame[M]"
+function parseFrameFilterValue(value: string): { tabId: number | null; frameId: number } | null {
   const fullMatch = value.match(/^tab\[(\d+)\]\.frame\[(\d+)\]$/);
   if (fullMatch) {
     return { tabId: parseInt(fullMatch[1], 10), frameId: parseInt(fullMatch[2], 10) };
@@ -361,8 +416,7 @@ function parseFrameFilterValue(value) {
 }
 
 // Check if message matches a single filter term
-function matchesTerm(msg, term) {
-  // Check for field:value syntax
+function matchesTerm(msg: CapturedMessage, term: string): boolean {
   const colonIdx = term.indexOf(':');
   if (colonIdx > 0) {
     const field = term.substring(0, colonIdx);
@@ -384,9 +438,8 @@ function matchesTerm(msg, term) {
         const filterTabId = parsed.tabId !== null ? parsed.tabId : tabId;
         const filterFrameId = parsed.frameId;
 
-        // Get source frame/tab info (including windowFrameMap lookup)
         let sourceFrameId = msg.source?.frameId;
-        let sourceTabId = tabId; // Default to current tab
+        let sourceTabId = tabId;
         if (msg.source?.windowId) {
           const registration = windowFrameMap.get(msg.source.windowId);
           if (registration) {
@@ -399,12 +452,10 @@ function matchesTerm(msg, term) {
           }
         }
 
-        // Check if source matches
         if (sourceFrameId === filterFrameId && sourceTabId === filterTabId) {
           return true;
         }
 
-        // Check if target matches (target is always in current tab)
         const targetFrameId = msg.target.frameId;
         if (targetFrameId === filterFrameId && tabId === filterTabId) {
           return true;
@@ -417,18 +468,16 @@ function matchesTerm(msg, term) {
     }
   }
 
-  // General text search in data preview
   return msg.dataPreview.toLowerCase().includes(term);
 }
 
 // Check if message matches filter
-function matchesFilter(msg, filter) {
+function matchesFilter(msg: CapturedMessage, filter: string): boolean {
   if (!filter) return true;
 
   const terms = filter.toLowerCase().split(/\s+/).filter(t => t);
 
   return terms.every(term => {
-    // Check for negation prefix
     if (term.startsWith('-') && term.length > 1) {
       return !matchesTerm(msg, term.substring(1));
     }
@@ -437,15 +486,13 @@ function matchesFilter(msg, filter) {
 }
 
 // Select a message
-function selectMessage(id) {
+function selectMessage(id: string): void {
   selectedMessageId = id;
 
-  // Update row selection
   messageTbody.querySelectorAll('tr').forEach(tr => {
     tr.classList.toggle('selected', tr.dataset.id === id);
   });
 
-  // Show detail pane
   const msg = messages.find(m => m.id === id);
   if (msg) {
     detailPane.classList.remove('hidden');
@@ -454,7 +501,7 @@ function selectMessage(id) {
 }
 
 // Render detail pane
-function renderDetailPane(msg) {
+function renderDetailPane(msg: CapturedMessage): void {
   if (activeTab === 'data') {
     renderDataTab(msg);
   } else {
@@ -463,7 +510,7 @@ function renderDetailPane(msg) {
 }
 
 // Render Data tab
-function renderDataTab(msg) {
+function renderDataTab(msg: CapturedMessage): void {
   const copyBtn = document.createElement('button');
   copyBtn.className = 'copy-btn';
   copyBtn.textContent = 'Copy JSON';
@@ -483,7 +530,7 @@ function renderDataTab(msg) {
 }
 
 // Render JSON value recursively
-function renderJsonValue(value, key = null) {
+function renderJsonValue(value: unknown, key: string | number | null = null): HTMLElement {
   const container = document.createElement('div');
 
   if (value === null) {
@@ -506,6 +553,10 @@ function renderJsonValue(value, key = null) {
   } else if (Array.isArray(value)) {
     const toggle = document.createElement('span');
     toggle.className = 'json-toggle';
+
+    const children = document.createElement('div');
+    children.className = 'json-children';
+
     toggle.onclick = () => {
       toggle.classList.toggle('collapsed');
       children.classList.toggle('hidden');
@@ -515,16 +566,18 @@ function renderJsonValue(value, key = null) {
     toggle.innerHTML = `${label}Array(${value.length})`;
     container.appendChild(toggle);
 
-    const children = document.createElement('div');
-    children.className = 'json-children';
     value.forEach((item, i) => {
       children.appendChild(renderJsonValue(item, i));
     });
     container.appendChild(children);
   } else if (typeof value === 'object') {
-    const keys = Object.keys(value);
+    const keys = Object.keys(value as object);
     const toggle = document.createElement('span');
     toggle.className = 'json-toggle';
+
+    const children = document.createElement('div');
+    children.className = 'json-children';
+
     toggle.onclick = () => {
       toggle.classList.toggle('collapsed');
       children.classList.toggle('hidden');
@@ -534,10 +587,8 @@ function renderJsonValue(value, key = null) {
     toggle.innerHTML = `${label}{...}`;
     container.appendChild(toggle);
 
-    const children = document.createElement('div');
-    children.className = 'json-children';
     keys.forEach(k => {
-      children.appendChild(renderJsonValue(value[k], k));
+      children.appendChild(renderJsonValue((value as Record<string, unknown>)[k], k));
     });
     container.appendChild(children);
   } else {
@@ -548,13 +599,11 @@ function renderJsonValue(value, key = null) {
 }
 
 // Render Context tab
-function renderContextTab(msg) {
+function renderContextTab(msg: CapturedMessage): void {
   const sourceType = msg.source?.type || 'unknown';
 
-  // Each row is [fieldId, value] where fieldId maps to FIELD_INFO
-  const rows = [];
+  const rows: [string | null, string | null][] = [];
 
-  // Extra info rows (conditionally shown)
   if (settings.showExtraMessageInfo) {
     rows.push(['messageId', msg.id]);
   }
@@ -573,27 +622,25 @@ function renderContextTab(msg) {
   }
 
   rows.push(
-    [null, null], // Separator
+    [null, null],
     ['targetUrl', msg.target.url],
     ['targetOrigin', msg.target.origin],
     ['targetTitle', msg.target.documentTitle || '(none)'],
     ['targetFrame', msg.target.frameId !== undefined ? `frame[${msg.target.frameId}]` : '(unknown)']
   );
 
-  // Add target frame info error if present
   if (msg.target.frameInfoError) {
     rows.push(['targetFrameError', msg.target.frameInfoError]);
   }
 
   rows.push(
-    [null, null], // Separator
+    [null, null],
     ['sourceType', `${getDirectionIcon(sourceType)} ${sourceType}`],
-    ['sourceOrigin', msg.source?.origin || '(unknown)'],
+    ['sourceOrigin', msg.source?.origin || '(unknown)']
   );
 
-  // Add source frame ID and tab ID if available (from message or windowFrameMap lookup)
   let sourceFrameId = msg.source?.frameId;
-  let sourceTabId = undefined;
+  let sourceTabId: number | undefined = undefined;
   if (msg.source?.windowId) {
     const registration = windowFrameMap.get(msg.source.windowId);
     if (registration) {
@@ -610,7 +657,6 @@ function renderContextTab(msg) {
     rows.push(['sourceTab', `tab[${sourceTabId}]`]);
   }
 
-  // Add iframe-specific rows for child sources
   if (sourceType === 'child') {
     if (msg.source?.iframeSrc) {
       rows.push(['sourceIframeSrc', msg.source.iframeSrc]);
@@ -629,15 +675,13 @@ function renderContextTab(msg) {
   rows.forEach(([fieldId, value]) => {
     const tr = document.createElement('tr');
     if (fieldId === null && value === null) {
-      // Separator row
       tr.innerHTML = '<td colspan="2" class="context-separator"></td>';
     } else {
-      const fieldInfo = FIELD_INFO[fieldId];
-      const label = fieldInfo ? fieldInfo.label : fieldId;
+      const fieldInfo = fieldId ? FIELD_INFO[fieldId] : undefined;
+      const label = fieldInfo ? fieldInfo.label : fieldId || '';
 
       const th = document.createElement('th');
-      if (fieldInfo) {
-        // Wrap label in span for precise hover targeting
+      if (fieldInfo && fieldId) {
         const labelSpan = document.createElement('span');
         labelSpan.textContent = label;
         labelSpan.classList.add('has-info');
@@ -645,20 +689,16 @@ function renderContextTab(msg) {
 
         labelSpan.addEventListener('mouseenter', () => {
           isMouseOverLabel = true;
-          // Clear any pending hide
           if (popupHideTimeout) {
             clearTimeout(popupHideTimeout);
             popupHideTimeout = null;
           }
-          // Clear any pending show timeout
           if (popupShowTimeout) {
             clearTimeout(popupShowTimeout);
           }
-          // If popup is already showing for this field, keep it visible
           if (currentPopupFieldId === fieldId) {
             return;
           }
-          // Delay showing popup
           popupShowTimeout = setTimeout(() => {
             showFieldInfoPopup(fieldId, labelSpan);
           }, 200);
@@ -666,12 +706,10 @@ function renderContextTab(msg) {
 
         labelSpan.addEventListener('mouseleave', () => {
           isMouseOverLabel = false;
-          // Clear pending show
           if (popupShowTimeout) {
             clearTimeout(popupShowTimeout);
             popupShowTimeout = null;
           }
-          // Delay hide check to allow mouse to enter popup
           popupHideTimeout = setTimeout(checkPopupVisibility, 50);
         });
 
@@ -681,7 +719,7 @@ function renderContextTab(msg) {
       }
 
       const td = document.createElement('td');
-      td.textContent = value;
+      td.textContent = value || '';
 
       tr.appendChild(th);
       tr.appendChild(td);
@@ -694,11 +732,10 @@ function renderContextTab(msg) {
 }
 
 // Show field info popup
-function showFieldInfoPopup(fieldId, labelElement) {
+function showFieldInfoPopup(fieldId: string, labelElement: HTMLElement): void {
   const fieldInfo = FIELD_INFO[fieldId];
   if (!fieldInfo) return;
 
-  // Build popup content
   let html = `<div class="field-description">${fieldInfo.description}</div>`;
   if (fieldInfo.technical) {
     html += `<div class="field-technical">${fieldInfo.technical}</div>`;
@@ -708,23 +745,17 @@ function showFieldInfoPopup(fieldId, labelElement) {
   }
   fieldInfoPopup.innerHTML = html;
 
-  // Position popup below label, right-aligned (flip above if no room below)
   const labelRect = labelElement.getBoundingClientRect();
 
-  // Make visible to measure
   fieldInfoPopup.classList.add('visible');
   const popupRect = fieldInfoPopup.getBoundingClientRect();
 
-  // Calculate position: right edge aligns with label right edge
   const left = labelRect.right - popupRect.width;
 
-  // Check if popup fits below label, otherwise flip above
-  let top;
+  let top: number;
   if (labelRect.bottom + popupRect.height <= window.innerHeight) {
-    // Fits below - no gap
     top = labelRect.bottom;
   } else {
-    // Flip above - no gap
     top = labelRect.top - popupRect.height;
   }
 
@@ -736,21 +767,21 @@ function showFieldInfoPopup(fieldId, labelElement) {
 }
 
 // Hide field info popup
-function hideFieldInfoPopup() {
+function hideFieldInfoPopup(): void {
   fieldInfoPopup.classList.remove('visible');
   currentPopupFieldId = null;
   currentPopupLabelElement = null;
 }
 
 // Check if popup should remain visible
-function checkPopupVisibility() {
+function checkPopupVisibility(): void {
   if (!isMouseOverPopup && !isMouseOverLabel) {
     hideFieldInfoPopup();
   }
 }
 
 // Update popup position (used on scroll)
-function updatePopupPosition() {
+function updatePopupPosition(): void {
   if (!currentPopupLabelElement) return;
 
   const labelRect = currentPopupLabelElement.getBoundingClientRect();
@@ -758,8 +789,7 @@ function updatePopupPosition() {
 
   const left = labelRect.right - popupRect.width;
 
-  // Check if popup fits below label, otherwise flip above
-  let top;
+  let top: number;
   if (labelRect.bottom + popupRect.height <= window.innerHeight) {
     top = labelRect.bottom;
   } else {
@@ -773,7 +803,6 @@ function updatePopupPosition() {
 // Popup hover listeners
 fieldInfoPopup.addEventListener('mouseenter', () => {
   isMouseOverPopup = true;
-  // Clear any pending hide
   if (popupHideTimeout) {
     clearTimeout(popupHideTimeout);
     popupHideTimeout = null;
@@ -782,7 +811,6 @@ fieldInfoPopup.addEventListener('mouseenter', () => {
 
 fieldInfoPopup.addEventListener('mouseleave', () => {
   isMouseOverPopup = false;
-  // Delay hide check to allow mouse to enter label
   popupHideTimeout = setTimeout(checkPopupVisibility, 50);
 });
 
@@ -792,7 +820,7 @@ tabContent.addEventListener('scroll', () => {
 });
 
 // Show column menu
-function showColumnMenu(e) {
+function showColumnMenu(e: MouseEvent): void {
   e.preventDefault();
 
   columnMenu.innerHTML = '';
@@ -807,8 +835,9 @@ function showColumnMenu(e) {
       </label>
     `;
 
-    item.querySelector('input').addEventListener('change', (e) => {
-      visibleColumns[col.id] = e.target.checked;
+    const input = item.querySelector('input')!;
+    input.addEventListener('change', (e) => {
+      visibleColumns[col.id] = (e.target as HTMLInputElement).checked;
       saveColumnPrefs();
       renderHeader();
       renderMessages();
@@ -823,9 +852,9 @@ function showColumnMenu(e) {
 }
 
 // Show cell menu
-let cellMenuContext = null;
+let cellMenuContext: { msg: CapturedMessage; colId: string } | null = null;
 
-function showCellMenu(e, msg, colId) {
+function showCellMenu(e: MouseEvent, msg: CapturedMessage, colId: string): void {
   e.preventDefault();
 
   cellMenuContext = { msg, colId };
@@ -873,14 +902,14 @@ filterByValue.addEventListener('click', () => {
 });
 
 // Add a new message
-function addMessage(msg) {
+function addMessage(msg: CapturedMessage): void {
   if (!isRecording) return;
 
-  // Process registration messages to build windowFrameMap
   if (isRegistrationMessage(msg) && msg.source?.windowId) {
+    const data = msg.data as { frameId: number; tabId?: number };
     windowFrameMap.set(msg.source.windowId, {
-      frameId: msg.data.frameId,
-      tabId: msg.data.tabId
+      frameId: data.frameId,
+      tabId: data.tabId
     });
   }
 
@@ -890,7 +919,7 @@ function addMessage(msg) {
 }
 
 // Clear all messages
-function clearMessages() {
+function clearMessages(): void {
   messages = [];
   filteredMessages = [];
   selectedMessageId = null;
@@ -900,7 +929,7 @@ function clearMessages() {
 
 // Event listeners
 filterInput.addEventListener('input', (e) => {
-  filterText = e.target.value;
+  filterText = (e.target as HTMLInputElement).value;
   applyFilterAndSort();
   renderMessages();
 });
@@ -908,8 +937,7 @@ filterInput.addEventListener('input', (e) => {
 clearBtn.addEventListener('click', clearMessages);
 
 preserveLogCheckbox.addEventListener('change', (e) => {
-  preserveLog = e.target.checked;
-  // Notify background script
+  preserveLog = (e.target as HTMLInputElement).checked;
   if (port) {
     port.postMessage({ type: 'preserveLog', tabId, value: preserveLog });
   }
@@ -927,7 +955,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    activeTab = btn.dataset.tab;
+    activeTab = (btn as HTMLElement).dataset.tab || 'data';
 
     const msg = messages.find(m => m.id === selectedMessageId);
     if (msg) {
@@ -948,7 +976,8 @@ resizeHandle.addEventListener('mousedown', (e) => {
 document.addEventListener('mousemove', (e) => {
   if (!isResizingPane) return;
 
-  const containerWidth = document.querySelector('.main-content').offsetWidth;
+  const container = document.querySelector('.main-content') as HTMLElement;
+  const containerWidth = container.offsetWidth;
   const newDetailWidth = containerWidth - e.clientX;
   const pct = Math.max(20, Math.min(70, (newDetailWidth / containerWidth) * 100));
 
@@ -972,37 +1001,36 @@ closeDetailBtn.addEventListener('click', () => {
 });
 
 // Switch between views
-function switchView(viewName) {
+function switchView(viewName: string): void {
   currentView = viewName;
 
-  // Update sidebar
   document.querySelectorAll('.sidebar-item').forEach(item => {
-    item.classList.toggle('active', item.dataset.view === viewName);
+    const el = item as HTMLElement;
+    el.classList.toggle('active', el.dataset.view === viewName);
   });
 
-  // Update views
   messagesView.classList.toggle('active', viewName === 'messages');
   hierarchyView.classList.toggle('active', viewName === 'hierarchy');
   settingsView.classList.toggle('active', viewName === 'settings');
 
-  // Save preference
   chrome.storage.local.set({ currentView: viewName });
 
-  // If switching to hierarchy, refresh data
   if (viewName === 'hierarchy') {
     refreshHierarchy();
   }
 }
 
 // Refresh hierarchy data
-function refreshHierarchy() {
+function refreshHierarchy(): void {
   port.postMessage({ type: 'get-frame-hierarchy', tabId });
 }
 
 // Build tree structure from flat frame list
-function buildFrameTree(frames) {
-  const frameMap = new Map(frames.map(f => [f.frameId, { ...f, children: [] }]));
-  const roots = [];
+function buildFrameTree(frames: FrameInfo[]): FrameInfo[] {
+  const frameMap = new Map<number | string, FrameInfo>(
+    frames.map(f => [f.frameId, { ...f, children: [] }])
+  );
+  const roots: FrameInfo[] = [];
 
   for (const frame of frameMap.values()) {
     if (frame.parentFrameId === -1) {
@@ -1010,9 +1038,9 @@ function buildFrameTree(frames) {
     } else {
       const parent = frameMap.get(frame.parentFrameId);
       if (parent) {
-        parent.children.push(frame);
+        parent.children!.push(frame);
       } else {
-        roots.push(frame); // Orphan frame, treat as root
+        roots.push(frame);
       }
     }
   }
@@ -1021,20 +1049,19 @@ function buildFrameTree(frames) {
 }
 
 // Render frame table
-function renderFrameTable() {
+function renderFrameTable(): void {
   frameTbody.innerHTML = '';
 
-  const roots = buildFrameTree(frames);
+  const roots = buildFrameTree(frameHierarchy);
 
-  function renderFrame(frame, depth) {
+  function renderFrame(frame: FrameInfo, depth: number): void {
     const tr = document.createElement('tr');
-    tr.dataset.frameId = frame.frameId;
+    tr.dataset.frameId = String(frame.frameId);
 
     if (frame.frameId === selectedFrameId) {
       tr.classList.add('selected');
     }
 
-    // Frame label cell with indentation
     const labelTd = document.createElement('td');
     labelTd.classList.add(`frame-indent-${Math.min(depth, 4)}`);
     if (frame.isOpener) {
@@ -1045,22 +1072,18 @@ function renderFrameTable() {
     }
     tr.appendChild(labelTd);
 
-    // URL cell
     const urlTd = document.createElement('td');
     urlTd.textContent = frame.url;
     tr.appendChild(urlTd);
 
-    // Origin cell
     const originTd = document.createElement('td');
     originTd.textContent = frame.origin;
     tr.appendChild(originTd);
 
-    // Title cell
     const titleTd = document.createElement('td');
     titleTd.textContent = frame.title;
     tr.appendChild(titleTd);
 
-    // Parent cell
     const parentTd = document.createElement('td');
     parentTd.textContent = frame.parentFrameId === -1 ? '-' : `frame[${frame.parentFrameId}]`;
     tr.appendChild(parentTd);
@@ -1068,8 +1091,7 @@ function renderFrameTable() {
     tr.addEventListener('click', () => selectFrame(frame.frameId));
     frameTbody.appendChild(tr);
 
-    // Render children
-    for (const child of frame.children) {
+    for (const child of frame.children || []) {
       renderFrame(child, depth + 1);
     }
   }
@@ -1080,16 +1102,14 @@ function renderFrameTable() {
 }
 
 // Select a frame and show details
-function selectFrame(frameId) {
+function selectFrame(frameId: number | string): void {
   selectedFrameId = frameId;
 
-  // Update row selection
   frameTbody.querySelectorAll('tr').forEach(tr => {
-    tr.classList.toggle('selected', parseInt(tr.dataset.frameId) === frameId);
+    tr.classList.toggle('selected', tr.dataset.frameId === String(frameId));
   });
 
-  // Show detail pane
-  const frame = frames.find(f => f.frameId === frameId);
+  const frame = frameHierarchy.find(f => f.frameId === frameId);
   if (frame) {
     frameDetailPane.classList.remove('hidden');
     renderFrameDetail(frame);
@@ -1097,7 +1117,7 @@ function selectFrame(frameId) {
 }
 
 // Render frame detail pane
-function renderFrameDetail(frame) {
+function renderFrameDetail(frame: FrameInfo): void {
   const html = `
     <div class="frame-properties">
       <table class="context-table">
@@ -1127,7 +1147,8 @@ function renderFrameDetail(frame) {
 
 // Sidebar click handlers
 sidebar.addEventListener('click', (e) => {
-  const item = e.target.closest('.sidebar-item');
+  const target = e.target as HTMLElement;
+  const item = target.closest('.sidebar-item') as HTMLElement | null;
   if (item && item.dataset.view) {
     switchView(item.dataset.view);
   }
@@ -1144,35 +1165,33 @@ closeFrameDetailBtn.addEventListener('click', () => {
 });
 
 // Connect to background script
-let port = null;
-let tabId = null;
+let port: chrome.runtime.Port;
+let tabId: number;
 
-function connect() {
-  // Get the tab ID we're inspecting
+function connect(): void {
   tabId = chrome.devtools.inspectedWindow.tabId;
 
   port = chrome.runtime.connect({ name: 'postmessage-panel' });
   port.postMessage({ type: 'init', tabId });
 
-  port.onMessage.addListener((msg) => {
-    if (msg.type === 'message') {
-      addMessage(msg.payload);
+  port.onMessage.addListener((msg: { type: string; payload?: CapturedMessage | FrameInfo[] }) => {
+    if (msg.type === 'message' && msg.payload) {
+      addMessage(msg.payload as CapturedMessage);
     } else if (msg.type === 'clear') {
       clearMessages();
-    } else if (msg.type === 'frame-hierarchy') {
-      frames = msg.payload;
+    } else if (msg.type === 'frame-hierarchy' && msg.payload) {
+      frameHierarchy = msg.payload as FrameInfo[];
       renderFrameTable();
     }
   });
 
   port.onDisconnect.addListener(() => {
-    // Try to reconnect after a delay
     setTimeout(connect, 1000);
   });
 }
 
 // Initialize settings
-function initSettings() {
+function initSettings(): void {
   chrome.storage.local.get(['settings'], (result) => {
     if (result.settings) {
       settings = { ...settings, ...result.settings };
@@ -1185,15 +1204,14 @@ function initSettings() {
 }
 
 // Save settings
-function saveSettings() {
+function saveSettings(): void {
   chrome.storage.local.set({ settings });
 }
 
 // Settings event handlers
 showExtraInfoCheckbox.addEventListener('change', (e) => {
-  settings.showExtraMessageInfo = e.target.checked;
+  settings.showExtraMessageInfo = (e.target as HTMLInputElement).checked;
   saveSettings();
-  // Re-render detail pane if a message is selected
   if (selectedMessageId && activeTab === 'context') {
     const msg = messages.find(m => m.id === selectedMessageId);
     if (msg) {
@@ -1203,15 +1221,14 @@ showExtraInfoCheckbox.addEventListener('change', (e) => {
 });
 
 enableFrameRegistrationCheckbox.addEventListener('change', (e) => {
-  settings.enableFrameRegistration = e.target.checked;
-  showRegistrationMessagesCheckbox.disabled = !e.target.checked;
+  settings.enableFrameRegistration = (e.target as HTMLInputElement).checked;
+  showRegistrationMessagesCheckbox.disabled = !(e.target as HTMLInputElement).checked;
   saveSettings();
-  // Notify background of setting change
-  chrome.storage.local.set({ enableFrameRegistration: e.target.checked });
+  chrome.storage.local.set({ enableFrameRegistration: (e.target as HTMLInputElement).checked });
 });
 
 showRegistrationMessagesCheckbox.addEventListener('change', (e) => {
-  settings.showRegistrationMessages = e.target.checked;
+  settings.showRegistrationMessages = (e.target as HTMLInputElement).checked;
   saveSettings();
   applyFilterAndSort();
   renderMessages();

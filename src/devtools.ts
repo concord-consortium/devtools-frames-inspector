@@ -1,9 +1,9 @@
 // Create the Frames panel in DevTools
 chrome.devtools.panels.create(
   'Frames',
-  null, // No icon for now
-  'src/panel/panel.html',
-  (panel) => {
+  '', // No icon for now
+  'panel/index.html',
+  (_panel) => {
     // Panel created successfully
   }
 );

@@ -1,5 +1,13 @@
 // Field information for context pane - used for UI popups and documentation generation
-const FIELD_INFO = {
+
+export interface FieldInfoEntry {
+  label: string;
+  description: string;
+  technical: string;
+  filter: string | null;
+}
+
+export const FIELD_INFO: Record<string, FieldInfoEntry> = {
   messageId: {
     label: 'Message ID',
     description: 'Unique identifier for this message.',

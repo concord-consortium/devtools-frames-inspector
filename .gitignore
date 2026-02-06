@@ -1,5 +1,6 @@
 # Build artifacts
 *.log
+dist/
 
 # OS files
 .DS_Store
@@ -10,5 +11,5 @@ Thumbs.db
 *.swp
 *.swo
 
-# Node modules (if added later)
+# Node modules
 node_modules/
