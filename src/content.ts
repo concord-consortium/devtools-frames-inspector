@@ -17,13 +17,6 @@ declare global {
 
   const EVENT_NAME = '__postmessage_devtools__';
 
-  interface LocalFrameIdentity {
-    frameId: number;
-    tabId: number;
-  }
-
-  let frameInfo: LocalFrameIdentity | null = null;
-
   // Inject the script into the page's main world
   function injectScript(): void {
     const script = document.createElement('script');
@@ -34,15 +27,14 @@ declare global {
     (document.head || document.documentElement).appendChild(script);
   }
 
-  // Send registration messages to parent and opener
-  function sendRegistrationMessages(): void {
-    if (!frameInfo) return;
+  interface RegistrationMessage {
+    type: '__frames_inspector_register__';
+    frameId: number;
+    tabId: number;
+  }
 
-    const registrationMessage = {
-      type: '__frames_inspector_register__',
-      frameId: frameInfo.frameId,
-      tabId: frameInfo.tabId
-    };
+  // Send registration messages to parent and opener
+  function sendRegistrationMessages(registrationMessage: RegistrationMessage): void {
 
     // Send to parent if we're in an iframe
     if (window.parent !== window) {
@@ -118,12 +110,12 @@ declare global {
     sendResponse: (response: FrameInfoResponse) => void
   ) => {
     if (message.type === 'frame-info') {
-      frameInfo = {
+      // Wait 500ms before sending registration to ensure parent is ready
+      setTimeout(() => sendRegistrationMessages({
+        type: '__frames_inspector_register__',
         frameId: message.frameId!,
         tabId: message.tabId!
-      };
-      // Wait 500ms before sending registration to ensure parent is ready
-      setTimeout(sendRegistrationMessages, 500);
+      }), 500);
     }
 
     if (message.type === 'get-frame-info') {
