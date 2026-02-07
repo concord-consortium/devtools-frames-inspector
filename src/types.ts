@@ -23,8 +23,8 @@ export interface RawCapturedMessage {
   messageType: string | null;
 }
 
-// Message after background enriches it with frameId info
-export interface CapturedMessage {
+// Message interface - can be implemented by Message class or used as plain object
+export interface IMessage {
   id: string;
   timestamp: number;
   target: {
@@ -41,7 +41,7 @@ export interface CapturedMessage {
     iframeSrc: string | null;
     iframeId: string | null;
     iframeDomPath: string | null;
-    frameId?: number;
+    frameId?: number;  // Computed for child messages
     frameInfoError?: string;
   };
   data: unknown;
@@ -50,6 +50,9 @@ export interface CapturedMessage {
   messageType: string | null;
   buffered?: boolean;
 }
+
+// Alias for backward compatibility during transition
+export type CapturedMessage = IMessage;
 
 export interface FrameInfo {
   frameId: number | string;

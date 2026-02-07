@@ -3,7 +3,8 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { store } from '../../store';
-import { ALL_COLUMNS, CapturedMessage } from '../../types';
+import { ALL_COLUMNS } from '../../types';
+import { Message } from '../../Message';
 
 // Column header with resize handle
 const ColumnHeader = observer(({ columnId }: { columnId: string }) => {
@@ -113,9 +114,9 @@ function showColumnMenu(x: number, y: number) {
 }
 
 // Cell menu helper
-let cellMenuContext: { msg: CapturedMessage; colId: string } | null = null;
+let cellMenuContext: { msg: Message; colId: string } | null = null;
 
-function showCellMenu(e: React.MouseEvent, msg: CapturedMessage, colId: string) {
+function showCellMenu(e: React.MouseEvent, msg: Message, colId: string) {
   e.preventDefault();
   cellMenuContext = { msg, colId };
 
@@ -167,7 +168,7 @@ if (typeof document !== 'undefined') {
 }
 
 // Message row component
-const MessageRow = observer(({ message }: { message: CapturedMessage }) => {
+const MessageRow = observer(({ message }: { message: Message }) => {
   const isSelected = message.id === store.selectedMessageId;
 
   const handleClick = () => {
@@ -184,7 +185,7 @@ const MessageRow = observer(({ message }: { message: CapturedMessage }) => {
         if (!store.visibleColumns[col.id]) return null;
 
         const value = store.getCellValue(message, col.id);
-        const dirClass = col.id === 'direction' ? `dir-${message.source?.type || 'unknown'}` : '';
+        const dirClass = col.id === 'direction' ? `dir-${message.source.type}` : '';
 
         return (
           <td
