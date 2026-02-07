@@ -221,25 +221,21 @@ chrome.runtime.onMessage.addListener((
     };
 
     // Add source frameId for parent messages
-    if (message.payload.source?.type === 'parent') {
+    if (message.payload.source.type === 'parent') {
       try {
         const frame = await chrome.webNavigation.getFrame({ tabId, frameId });
         if (!frame) {
           enrichedPayload.target.frameInfoError = 'Frame not found';
         } else if (frame.parentFrameId == null) {
-          if (enrichedPayload.source) {
-            enrichedPayload.source = {
-              ...enrichedPayload.source,
-              frameInfoError: 'No parentFrameId'
-            };
-          }
+          enrichedPayload.source = {
+            ...enrichedPayload.source,
+            frameInfoError: 'No parentFrameId'
+          };
         } else {
-          if (enrichedPayload.source) {
-            enrichedPayload.source = {
-              ...enrichedPayload.source,
-              frameId: frame.parentFrameId
-            };
-          }
+          enrichedPayload.source = {
+            ...enrichedPayload.source,
+            frameId: frame.parentFrameId
+          };
         }
       } catch (e) {
         // Frame may no longer exist

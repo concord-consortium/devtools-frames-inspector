@@ -30,9 +30,10 @@ class Message implements IMessage {
     this.buffered = msg.buffered;
     this._source = msg.source;
 
-    makeAutoObservable(this, {
+    makeAutoObservable<this, '_source'>(this, {
       target: observable.ref, // Target object itself is not deeply observable
-      data: observable.ref // Data is not deeply observable
+      data: observable.ref, // Data is not deeply observable
+      _source: observable.ref // Source is immutable payload data
     });
   }
 
