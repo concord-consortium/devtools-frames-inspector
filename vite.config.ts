@@ -44,7 +44,6 @@ export default defineConfig(({ mode }) => ({
         // Standalone scripts
         'background': resolve(__dirname, 'src/background.ts'),
         'content': resolve(__dirname, 'src/content.ts'),
-        'injected': resolve(__dirname, 'src/injected.ts'),
         'devtools': resolve(__dirname, 'src/devtools.ts'),
       },
       output: {

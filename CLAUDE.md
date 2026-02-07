@@ -8,16 +8,17 @@ Frames Inspector - Chrome DevTools extension (Manifest V3) for inspecting frames
 
 ## Development
 
-No build system - vanilla JavaScript. Load as unpacked extension in Chrome.
+Uses Vite for building TypeScript/React. Load dist/ as unpacked extension in Chrome.
 
-**Testing the extension:**
+**Build and test:**
 ```bash
+npm run build   # Build to dist/
 cd test && python -m http.server 8000
 # Open http://localhost:8000/test-page.html in Chrome
 # DevTools → Frames tab to see captured messages
 ```
 
-**Reload after changes:** Go to `chrome://extensions/` and click the refresh icon on the extension.
+**Reload after changes:** Run `npm run build`, then go to `chrome://extensions/` and click the refresh icon on the extension.
 
 ## Architecture
 
@@ -25,26 +26,23 @@ cd test && python -m http.server 8000
 
 The extension uses programmatic script injection to minimize impact on pages:
 
-- Scripts are injected only when the Frames panel is opened for a tab
+- Content script is injected only when the Frames panel is opened for a tab
 - Popups opened from monitored tabs get buffering enabled automatically (captures early messages before panel connects)
 - Once monitoring starts, it persists until page reload (even if DevTools closes)
 
 ### Message Flow
 
-Message flow uses a two-script approach because content scripts can't directly intercept page JavaScript:
-
 ```
-Page Context                    Isolated World                Service Worker      DevTools
-─────────────                   ──────────────                ──────────────      ────────
-injected.js ──CustomEvent──►    content.js ──runtime.msg──►   background.js ──►   panel.js
-(message listener)              (event bridge)                (routes by tabId)   (UI)
+Isolated World                Service Worker      DevTools
+──────────────                ──────────────      ────────
+content.js ──runtime.msg──►   background.js ──►   panel.js
+(message listener)            (routes by tabId)   (UI)
 ```
 
 **Key files:**
-- `injected.js` - Injected into page's main world, listens for `message` events and identifies source type (parent, child, self, etc.)
-- `content.js` - Content script that receives CustomEvents from injected.js and forwards to service worker
-- `background.js` - Service worker that routes messages to appropriate DevTools panel by tab ID
-- `panel.js` - Panel UI logic: table rendering, filtering (`type:`, `origin:`, `dir:` prefixes), column customization, detail view
+- `content.ts` - Content script that listens for `message` events, identifies source type (parent, child, self, etc.), and forwards to service worker
+- `background.ts` - Service worker that routes messages to appropriate DevTools panel by tab ID
+- `panel.tsx` - Panel UI: React-based table rendering, filtering, column customization, detail view
 
 ## Design Constraints
 

@@ -1,5 +1,29 @@
 // Shared types for Frames Inspector
 
+// Message as captured by content script (before background enriches it)
+export interface RawCapturedMessage {
+  id: string;
+  timestamp: number;
+  target: {
+    url: string;
+    origin: string;
+    documentTitle: string;
+  };
+  source: {
+    type: string;
+    origin: string;
+    windowId: string | null;
+    iframeSrc: string | null;
+    iframeId: string | null;
+    iframeDomPath: string | null;
+  };
+  data: unknown;
+  dataPreview: string;
+  dataSize: number;
+  messageType: string | null;
+}
+
+// Message after background enriches it with frameId info
 export interface CapturedMessage {
   id: string;
   timestamp: number;
@@ -65,7 +89,7 @@ export type BackgroundToContentMessage = FrameIdentityMessage | GetFrameInfoMess
 // Messages sent from content script to background
 export interface PostMessageCapturedMessage {
   type: 'postmessage-captured';
-  payload: CapturedMessage;
+  payload: RawCapturedMessage;
 }
 
 export type ContentToBackgroundMessage = PostMessageCapturedMessage;
