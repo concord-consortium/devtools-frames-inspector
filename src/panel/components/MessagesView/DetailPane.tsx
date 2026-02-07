@@ -28,48 +28,35 @@ const DataTab = observer(({ message }: { message: CapturedMessage }) => {
   );
 });
 
+// Individual row component for context table
+const Field = ({ id, children }: { id: string; children: React.ReactNode }) => {
+  const fieldInfo = FIELD_INFO[id];
+  const label = fieldInfo ? fieldInfo.label : id;
+
+  return (
+    <tr>
+      <th>
+        {fieldInfo ? (
+          <FieldLabel fieldId={id} label={label} />
+        ) : (
+          label
+        )}
+      </th>
+      <td>{children}</td>
+    </tr>
+  );
+};
+
+// Separator row component
+const SeparatorRow = () => (
+  <tr>
+    <td colSpan={2} className="context-separator"></td>
+  </tr>
+);
+
 // Context tab content
 const ContextTab = observer(({ message }: { message: CapturedMessage }) => {
   const sourceType = message.source?.type || 'unknown';
-
-  // Build rows
-  type Row = [string | null, string | null];
-  const rows: Row[] = [];
-
-  if (store.settings.showExtraMessageInfo) {
-    rows.push(['messageId', message.id]);
-  }
-
-  rows.push(
-    ['timestamp', new Date(message.timestamp).toISOString()],
-    ['messageType', message.messageType || '(none)'],
-    ['dataSize', store.formatSize(message.dataSize)]
-  );
-
-  if (store.settings.showExtraMessageInfo) {
-    rows.push(['buffered', message.buffered ? 'Yes' : 'No']);
-    if (message.source?.windowId) {
-      rows.push(['windowId', message.source.windowId]);
-    }
-  }
-
-  rows.push(
-    [null, null], // separator
-    ['targetUrl', message.target.url],
-    ['targetOrigin', message.target.origin],
-    ['targetTitle', message.target.documentTitle || '(none)'],
-    ['targetFrame', message.target.frameId !== undefined ? `frame[${message.target.frameId}]` : '(unknown)']
-  );
-
-  if (message.target.frameInfoError) {
-    rows.push(['targetFrameError', message.target.frameInfoError]);
-  }
-
-  rows.push(
-    [null, null], // separator
-    ['sourceType', `${store.getDirectionIcon(sourceType)} ${sourceType}`],
-    ['sourceOrigin', message.source?.origin || '(unknown)']
-  );
 
   // Get source frame info
   let sourceFrameId = message.source?.frameId;
@@ -83,54 +70,59 @@ const ContextTab = observer(({ message }: { message: CapturedMessage }) => {
       sourceTabId = registration.tabId;
     }
   }
-  if (sourceFrameId !== undefined) {
-    rows.push(['sourceFrame', `frame[${sourceFrameId}]`]);
-  }
-  if (sourceTabId !== undefined) {
-    rows.push(['sourceTab', `tab[${sourceTabId}]`]);
-  }
-
-  // Child-specific fields
-  if (sourceType === 'child') {
-    if (message.source?.iframeSrc) {
-      rows.push(['sourceIframeSrc', message.source.iframeSrc]);
-    }
-    if (message.source?.iframeId) {
-      rows.push(['sourceIframeId', message.source.iframeId]);
-    }
-    if (message.source?.iframeDomPath) {
-      rows.push(['sourceIframeDomPath', message.source.iframeDomPath]);
-    }
-  }
 
   return (
     <table className="context-table">
       <tbody>
-        {rows.map(([fieldId, value], index) => {
-          if (fieldId === null && value === null) {
-            return (
-              <tr key={index}>
-                <td colSpan={2} className="context-separator"></td>
-              </tr>
-            );
-          }
+        {store.settings.showExtraMessageInfo && (
+          <Field id="messageId">{message.id}</Field>
+        )}
+        <Field id="timestamp">{new Date(message.timestamp).toISOString()}</Field>
+        <Field id="messageType">{message.messageType || '(none)'}</Field>
+        <Field id="dataSize">{store.formatSize(message.dataSize)}</Field>
+        {store.settings.showExtraMessageInfo && (
+          <>
+            <Field id="buffered">{message.buffered ? 'Yes' : 'No'}</Field>
+            {message.source?.windowId && (
+              <Field id="windowId">{message.source.windowId}</Field>
+            )}
+          </>
+        )}
 
-          const fieldInfo = fieldId ? FIELD_INFO[fieldId] : undefined;
-          const label = fieldInfo ? fieldInfo.label : fieldId || '';
+        <SeparatorRow />
+        <Field id="targetUrl">{message.target.url}</Field>
+        <Field id="targetOrigin">{message.target.origin}</Field>
+        <Field id="targetTitle">{message.target.documentTitle || '(none)'}</Field>
+        <Field id="targetFrame">
+          {message.target.frameId !== undefined ? `frame[${message.target.frameId}]` : '(unknown)'}
+        </Field>
+        {message.target.frameInfoError && (
+          <Field id="targetFrameError">{message.target.frameInfoError}</Field>
+        )}
 
-          return (
-            <tr key={index}>
-              <th>
-                {fieldInfo && fieldId ? (
-                  <FieldLabel fieldId={fieldId} label={label} />
-                ) : (
-                  label
-                )}
-              </th>
-              <td>{value}</td>
-            </tr>
-          );
-        })}
+        <SeparatorRow />
+        <Field id="sourceType">{store.getDirectionIcon(sourceType)} {sourceType}</Field>
+        <Field id="sourceOrigin">{message.source?.origin || '(unknown)'}</Field>
+        {sourceFrameId !== undefined && (
+          <Field id="sourceFrame">{`frame[${sourceFrameId}]`}</Field>
+        )}
+        {sourceTabId !== undefined && (
+          <Field id="sourceTab">{`tab[${sourceTabId}]`}</Field>
+        )}
+
+        {sourceType === 'child' && (
+          <>
+            {message.source?.iframeSrc && (
+              <Field id="sourceIframeSrc">{message.source.iframeSrc}</Field>
+            )}
+            {message.source?.iframeId && (
+              <Field id="sourceIframeId">{message.source.iframeId}</Field>
+            )}
+            {message.source?.iframeDomPath && (
+              <Field id="sourceIframeDomPath">{message.source.iframeDomPath}</Field>
+            )}
+          </>
+        )}
       </tbody>
     </table>
   );
