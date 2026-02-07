@@ -1,8 +1,8 @@
 // Types for Frames Inspector panel
 
 // Re-export shared types
-export type { CapturedMessage, FrameInfo } from '../types';
-import type { CapturedMessage } from '../types';
+export type { IMessage, CapturedMessage, FrameInfo } from '../types';
+import type { IMessage } from '../types';
 
 // Registration message data structure
 export interface RegistrationMessageData {
@@ -11,8 +11,8 @@ export interface RegistrationMessageData {
   tabId: number;
 }
 
-// CapturedMessage with typed registration data
-export interface RegistrationCapturedMessage extends CapturedMessage {
+// IMessage with typed registration data
+export interface RegistrationCapturedMessage extends IMessage {
   data: RegistrationMessageData;
 }
 

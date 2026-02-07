@@ -1,7 +1,7 @@
 // Service worker for Frames Inspector
 // Routes messages between content scripts and DevTools panel
 
-import { CapturedMessage, ContentToBackgroundMessage, FrameIdentityMessage, FrameInfo, FrameInfoResponse, GetFrameInfoMessage, OpenerInfo } from './types';
+import { IMessage, ContentToBackgroundMessage, FrameIdentityMessage, FrameInfo, FrameInfoResponse, GetFrameInfoMessage, OpenerInfo } from './types';
 
 // Store panel connections by tab ID
 const panelConnections = new Map<number, chrome.runtime.Port>();
@@ -10,7 +10,7 @@ const panelConnections = new Map<number, chrome.runtime.Port>();
 const preserveLogPrefs = new Map<number, boolean>();
 
 // Buffer messages for tabs without a panel connection
-const messageBuffers = new Map<number, CapturedMessage[]>();
+const messageBuffers = new Map<number, IMessage[]>();
 // Tabs that should have buffering enabled (opened from a monitored tab)
 const bufferingEnabledTabs = new Set<number>();
 // TODO: some messages can be big a buffer size of 1000 seems excessive
@@ -212,7 +212,7 @@ chrome.runtime.onMessage.addListener((
   // Use async IIFE to handle potential async operations
   (async () => {
     // Enrich the payload with frameId on target and buffered flag
-    const enrichedPayload: CapturedMessage = {
+    const enrichedPayload: IMessage = {
       ...message.payload,
       target: {
         ...message.payload.target,
@@ -227,15 +227,19 @@ chrome.runtime.onMessage.addListener((
         if (!frame) {
           enrichedPayload.target.frameInfoError = 'Frame not found';
         } else if (frame.parentFrameId == null) {
-          enrichedPayload.source = {
-            ...enrichedPayload.source,
-            frameInfoError: 'No parentFrameId'
-          };
+          if (enrichedPayload.source) {
+            enrichedPayload.source = {
+              ...enrichedPayload.source,
+              frameInfoError: 'No parentFrameId'
+            };
+          }
         } else {
-          enrichedPayload.source = {
-            ...enrichedPayload.source,
-            frameId: frame.parentFrameId
-          };
+          if (enrichedPayload.source) {
+            enrichedPayload.source = {
+              ...enrichedPayload.source,
+              frameId: frame.parentFrameId
+            };
+          }
         }
       } catch (e) {
         // Frame may no longer exist

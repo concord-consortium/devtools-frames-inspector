@@ -3,13 +3,14 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { store } from '../../store';
-import { CapturedMessage } from '../../types';
+import { Message } from '../../Message';
+import { windowFrameRegistry } from '../../WindowFrameRegistry';
 import { FIELD_INFO } from '../../field-info';
 import { JsonTree } from '../shared/JsonTree';
 import { FieldLabel } from '../shared/FieldInfoPopup';
 
 // Data tab content
-const DataTab = observer(({ message }: { message: CapturedMessage }) => {
+const DataTab = observer(({ message }: { message: Message }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -55,18 +56,15 @@ const SeparatorRow = () => (
 );
 
 // Context tab content
-const ContextTab = observer(({ message }: { message: CapturedMessage }) => {
-  const sourceType = message.source?.type || 'unknown';
+const ContextTab = observer(({ message }: { message: Message }) => {
+  const sourceType = message.source.type;
 
   // Get source frame info
-  let sourceFrameId = message.source?.frameId;
+  const sourceFrameId = message.source.frameId;
   let sourceTabId: number | undefined = undefined;
-  if (message.source?.windowId) {
-    const registration = store.windowFrameMap.get(message.source.windowId);
+  if (message.source.windowId) {
+    const registration = windowFrameRegistry.get(message.source.windowId);
     if (registration) {
-      if (sourceFrameId === undefined) {
-        sourceFrameId = registration.frameId;
-      }
       sourceTabId = registration.tabId;
     }
   }
@@ -86,7 +84,7 @@ const ContextTab = observer(({ message }: { message: CapturedMessage }) => {
         {store.settings.showExtraMessageInfo && (
           <>
             <Field id="buffered">{message.buffered ? 'Yes' : 'No'}</Field>
-            {message.source?.windowId && (
+            {message.source.windowId && (
               <Field id="windowId">{message.source.windowId}</Field>
             )}
           </>
@@ -106,7 +104,7 @@ const ContextTab = observer(({ message }: { message: CapturedMessage }) => {
 
         <SeparatorRow />
         <Field id="sourceType">{store.getDirectionIcon(sourceType)} {sourceType}</Field>
-        <Field id="sourceOrigin">{message.source?.origin || '(unknown)'}</Field>
+        <Field id="sourceOrigin">{message.source.origin}</Field>
         {sourceFrameId !== undefined && (
           <Field id="sourceFrame">{`frame[${sourceFrameId}]`}</Field>
         )}
@@ -116,13 +114,13 @@ const ContextTab = observer(({ message }: { message: CapturedMessage }) => {
 
         {sourceType === 'child' && (
           <>
-            {message.source?.iframeSrc && (
+            {message.source.iframeSrc && (
               <Field id="sourceIframeSrc">{message.source.iframeSrc}</Field>
             )}
-            {message.source?.iframeId && (
+            {message.source.iframeId && (
               <Field id="sourceIframeId">{message.source.iframeId}</Field>
             )}
-            {message.source?.iframeDomPath && (
+            {message.source.iframeDomPath && (
               <Field id="sourceIframeDomPath">{message.source.iframeDomPath}</Field>
             )}
           </>
