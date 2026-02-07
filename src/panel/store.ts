@@ -4,6 +4,7 @@ import { makeAutoObservable, reaction } from 'mobx';
 import {
   CapturedMessage,
   FrameInfo,
+  RegistrationCapturedMessage,
   Settings,
   WindowFrameRegistration,
   ViewType,
@@ -65,8 +66,8 @@ class PanelStore {
     this.tabId = tabId;
   }
 
-  // Check if a message is a registration message
-  isRegistrationMessage(msg: CapturedMessage): boolean {
+  // Check if a message is a registration message (type guard)
+  isRegistrationMessage(msg: CapturedMessage): msg is RegistrationCapturedMessage {
     return (msg.data as { type?: string })?.type === '__frames_inspector_register__';
   }
 
@@ -100,6 +101,16 @@ class PanelStore {
   // Computed: selected frame
   get selectedFrame(): FrameInfo | undefined {
     return this.frameHierarchy.find(f => f.frameId === this.selectedFrameId);
+  }
+
+  // Get owner iframe info for a frame by its frameId (in the current tab)
+  getOwnerInfo(frameId: number | string): WindowFrameRegistration | undefined {
+    for (const reg of this.windowFrameMap.values()) {
+      if (reg.frameId === frameId && reg.tabId === this.tabId) {
+        return reg;
+      }
+    }
+    return undefined;
   }
 
   // Get sortable value for a message
@@ -260,10 +271,13 @@ class PanelStore {
 
     // Handle registration messages
     if (this.isRegistrationMessage(msg) && msg.source?.windowId) {
-      const data = msg.data as { frameId: number; tabId?: number };
       this.windowFrameMap.set(msg.source.windowId, {
-        frameId: data.frameId,
-        tabId: data.tabId
+        frameId: msg.data.frameId,
+        tabId: msg.data.tabId,
+        // Store owner iframe info (from the parent's perspective)
+        ownerDomPath: msg.source.iframeDomPath || undefined,
+        ownerSrc: msg.source.iframeSrc || undefined,
+        ownerId: msg.source.iframeId || undefined
       });
     }
 

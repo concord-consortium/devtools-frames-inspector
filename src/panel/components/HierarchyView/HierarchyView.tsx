@@ -67,6 +67,7 @@ const FrameTable = observer(() => {
 // Frame detail pane
 const FrameDetailPane = observer(() => {
   const frame = store.selectedFrame;
+  const ownerInfo = frame ? store.getOwnerInfo(frame.frameId) : undefined;
 
   const handleClose = () => {
     store.selectFrame(null);
@@ -101,6 +102,9 @@ const FrameDetailPane = observer(() => {
               <tr><th>Origin</th><td>{frame.origin}</td></tr>
               <tr><th>Title</th><td>{frame.title || '(none)'}</td></tr>
               <tr><th>Parent</th><td>{frame.parentFrameId === -1 ? '-' : `frame[${frame.parentFrameId}]`}</td></tr>
+              {ownerInfo?.ownerDomPath && (
+                <tr><th>Owner Element</th><td>{ownerInfo.ownerDomPath}</td></tr>
+              )}
             </tbody>
           </table>
         </div>

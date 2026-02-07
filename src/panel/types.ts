@@ -2,6 +2,19 @@
 
 // Re-export shared types
 export type { CapturedMessage, FrameInfo } from '../types';
+import type { CapturedMessage } from '../types';
+
+// Registration message data structure
+export interface RegistrationMessageData {
+  type: '__frames_inspector_register__';
+  frameId: number;
+  tabId: number;
+}
+
+// CapturedMessage with typed registration data
+export interface RegistrationCapturedMessage extends CapturedMessage {
+  data: RegistrationMessageData;
+}
 
 export interface ColumnDef {
   id: string;
@@ -18,7 +31,11 @@ export interface Settings {
 
 export interface WindowFrameRegistration {
   frameId: number;
-  tabId?: number;
+  tabId: number;
+  // Owner iframe info (the iframe element in the parent that contains this frame)
+  ownerDomPath?: string;
+  ownerSrc?: string;
+  ownerId?: string;
 }
 
 export type ViewType = 'messages' | 'hierarchy' | 'settings';
