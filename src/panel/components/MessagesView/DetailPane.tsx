@@ -71,6 +71,9 @@ const ContextTab = observer(({ message }: { message: CapturedMessage }) => {
     }
   }
 
+  // Get target owner info (iframe element that contains the target frame)
+  const targetOwnerInfo = store.getOwnerInfo(message.target.frameId);
+
   return (
     <table className="context-table">
       <tbody>
@@ -93,9 +96,10 @@ const ContextTab = observer(({ message }: { message: CapturedMessage }) => {
         <Field id="targetUrl">{message.target.url}</Field>
         <Field id="targetOrigin">{message.target.origin}</Field>
         <Field id="targetTitle">{message.target.documentTitle || '(none)'}</Field>
-        <Field id="targetFrame">
-          {message.target.frameId !== undefined ? `frame[${message.target.frameId}]` : '(unknown)'}
-        </Field>
+        <Field id="targetFrame">{`frame[${message.target.frameId}]`}</Field>
+        {targetOwnerInfo?.ownerDomPath && (
+          <Field id="targetOwnerElement">{targetOwnerInfo.ownerDomPath}</Field>
+        )}
         {message.target.frameInfoError && (
           <Field id="targetFrameError">{message.target.frameInfoError}</Field>
         )}

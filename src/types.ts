@@ -7,7 +7,7 @@ export interface CapturedMessage {
     url: string;
     origin: string;
     documentTitle: string;
-    frameId?: number;
+    frameId: number;
     frameInfoError?: string;
   };
   source: {

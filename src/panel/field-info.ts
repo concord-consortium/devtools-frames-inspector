@@ -62,6 +62,12 @@ export const FIELD_INFO: Record<string, FieldInfoEntry> = {
     technical: 'Obtained from sender.frameId in the background script.',
     filter: null
   },
+  targetOwnerElement: {
+    label: 'Target Owner Element',
+    description: 'CSS selector path to the iframe element that contains the target frame.',
+    technical: 'Obtained via registration message correlation. The parent frame records the iframe domPath when the child registers.',
+    filter: null
+  },
   targetFrameError: {
     label: 'Target Frame Error',
     description: 'Error that occurred when trying to get frame information.',
