@@ -1,8 +1,8 @@
-// Integration tests for the frame model: Store#addMessage → FrameStore
+// Integration tests for the frame model: processIncomingMessage → FrameStore
 //
-// Tests call store.addMessage() with IMessage objects matching what the background
-// script produces, then verify the resulting FrameStore state and Message computed
-// properties.
+// Tests call processIncomingMessage() with IMessage objects matching what the
+// background script produces, then verify the resulting FrameStore state and
+// Message computed properties.
 //
 // Test frame hierarchy:
 //   A (top frame, frameId=0)       — https://parent.example.com
@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { store } from './store';
+import { processIncomingMessage } from './connection';
 import { frameStore } from './models';
 import type { IMessage } from '../types';
 
@@ -166,7 +167,7 @@ describe('Frame model integration', () => {
   // ===================================================================
   describe('registration disabled', () => {
     it('child→parent: creates target doc+frame, source doc by windowId only', () => {
-      store.addMessage(childMsg(FRAME_B, FRAME_A));
+      processIncomingMessage(childMsg(FRAME_B, FRAME_A), TAB_ID);
 
       // Target FrameDocument: created by documentId with full info
       const targetDoc = frameStore.getDocumentById(FRAME_A.documentId);
@@ -202,7 +203,7 @@ describe('Frame model integration', () => {
     });
 
     it('parent→child: source doc created by documentId with native frameId', () => {
-      store.addMessage(parentMsg(FRAME_A, FRAME_B));
+      processIncomingMessage(parentMsg(FRAME_A, FRAME_B), TAB_ID);
 
       // Source FrameDocument created by documentId
       const sourceDoc = frameStore.getDocumentById(FRAME_A.documentId);
@@ -216,8 +217,8 @@ describe('Frame model integration', () => {
     });
 
     it('multiple messages from same child reuse source FrameDocument', () => {
-      store.addMessage(childMsg(FRAME_B, FRAME_A, { type: 'event-1' }));
-      store.addMessage(childMsg(FRAME_B, FRAME_A, { type: 'event-2' }));
+      processIncomingMessage(childMsg(FRAME_B, FRAME_A, { type: 'event-1' }), TAB_ID);
+      processIncomingMessage(childMsg(FRAME_B, FRAME_A, { type: 'event-2' }), TAB_ID);
 
       expect(store.messages[0].sourceDocument).toBe(store.messages[1].sourceDocument);
       expect(store.messages[0].sourceDocument)
@@ -225,8 +226,8 @@ describe('Frame model integration', () => {
     });
 
     it('messages from different children create separate FrameDocuments', () => {
-      store.addMessage(childMsg(FRAME_B, FRAME_A));
-      store.addMessage(childMsg(FRAME_C, FRAME_A));
+      processIncomingMessage(childMsg(FRAME_B, FRAME_A), TAB_ID);
+      processIncomingMessage(childMsg(FRAME_C, FRAME_A), TAB_ID);
 
       const docB = store.messages[0].sourceDocument;
       const docC = store.messages[1].sourceDocument;
@@ -243,14 +244,14 @@ describe('Frame model integration', () => {
   describe('registration enabled', () => {
     it('child message then registration: source.frameId resolves reactively', () => {
       // Child message arrives first — source only known by windowId
-      store.addMessage(childMsg(FRAME_B, FRAME_A));
+      processIncomingMessage(childMsg(FRAME_B, FRAME_A), TAB_ID);
       const msg = store.messages[0];
 
       expect(msg.sourceFrame).toBeUndefined();
       expect(msg.source.frameId).toBeUndefined();
 
       // Registration arrives — links windowId to Frame
-      store.addMessage(registrationMsg(FRAME_B, FRAME_A));
+      processIncomingMessage(registrationMsg(FRAME_B, FRAME_A), TAB_ID);
 
       // The SAME message's computed properties now resolve
       expect(msg.sourceFrame).toBeDefined();
@@ -264,10 +265,10 @@ describe('Frame model integration', () => {
 
     it('registration then child message: source.frameId resolves immediately', () => {
       // Registration arrives first
-      store.addMessage(registrationMsg(FRAME_B, FRAME_A));
+      processIncomingMessage(registrationMsg(FRAME_B, FRAME_A), TAB_ID);
 
       // Child message arrives — source should already be linked
-      store.addMessage(childMsg(FRAME_B, FRAME_A));
+      processIncomingMessage(childMsg(FRAME_B, FRAME_A), TAB_ID);
       const msg = store.messages[1];
 
       expect(msg.sourceFrame).toBeDefined();
@@ -291,14 +292,14 @@ describe('Frame model integration', () => {
     describe('frame is both source and target before registration', () => {
       it('merges two FrameDocuments when registration arrives', () => {
         // Step 1: B→A — creates source FrameDocument for B by windowId
-        store.addMessage(childMsg(FRAME_B, FRAME_A));
+        processIncomingMessage(childMsg(FRAME_B, FRAME_A), TAB_ID);
 
         const docBByWindow = frameStore.getDocumentByWindowId(FRAME_B.windowId);
         expect(docBByWindow).toBeDefined();
         expect(docBByWindow!.documentId).toBeUndefined();
 
         // Step 2: C→B — creates target FrameDocument for B by documentId
-        store.addMessage(childMsg(FRAME_C, FRAME_B));
+        processIncomingMessage(childMsg(FRAME_C, FRAME_B), TAB_ID);
 
         const docBByDocId = frameStore.getDocumentById(FRAME_B.documentId);
         expect(docBByDocId).toBeDefined();
@@ -308,7 +309,7 @@ describe('Frame model integration', () => {
         expect(docBByWindow).not.toBe(docBByDocId);
 
         // Step 3: Registration for B — merges them
-        store.addMessage(registrationMsg(FRAME_B, FRAME_A));
+        processIncomingMessage(registrationMsg(FRAME_B, FRAME_A), TAB_ID);
 
         // Both lookups now return the same merged document
         const mergedByWindow = frameStore.getDocumentByWindowId(FRAME_B.windowId);
@@ -331,9 +332,9 @@ describe('Frame model integration', () => {
       });
 
       it('does not corrupt parent frame document', () => {
-        store.addMessage(childMsg(FRAME_B, FRAME_A));
-        store.addMessage(childMsg(FRAME_C, FRAME_B));
-        store.addMessage(registrationMsg(FRAME_B, FRAME_A));
+        processIncomingMessage(childMsg(FRAME_B, FRAME_A), TAB_ID);
+        processIncomingMessage(childMsg(FRAME_C, FRAME_B), TAB_ID);
+        processIncomingMessage(registrationMsg(FRAME_B, FRAME_A), TAB_ID);
 
         // A's FrameDocument: url, origin, frame link all unchanged
         const docA = frameStore.getDocumentById(FRAME_A.documentId);
@@ -349,7 +350,7 @@ describe('Frame model integration', () => {
     });
 
     it('registration sets owner element on Frame', () => {
-      store.addMessage(registrationMsg(FRAME_B, FRAME_A));
+      processIncomingMessage(registrationMsg(FRAME_B, FRAME_A), TAB_ID);
 
       const frameB = frameStore.getFrame(TAB_ID, FRAME_B.frameId);
       expect(frameB).toBeDefined();

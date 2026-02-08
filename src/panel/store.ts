@@ -8,7 +8,7 @@ import {
   SortDirection,
   ALL_COLUMNS
 } from './types';
-import { IMessage, FrameInfo } from '../types';
+import { FrameInfo } from '../types';
 import { Message } from './Message';
 import { Frame, frameStore } from './models';
 
@@ -233,45 +233,8 @@ class PanelStore {
   }
 
   // Actions
-  addMessage(msg: IMessage): void {
+  addMessage(message: Message): void {
     if (!this.isRecording) return;
-
-    // Process through FrameStore to create/update Frame and FrameDocument instances
-    const { targetOwnerElement, sourceOwnerElement } = frameStore.processMessage({
-      tabId: this.tabId,
-      targetDocumentId: msg.target.documentId!,
-      targetFrameId: msg.target.frameId,
-      targetUrl: msg.target.url,
-      targetOrigin: msg.target.origin,
-      targetTitle: msg.target.documentTitle,
-      sourceWindowId: msg.source.windowId,
-      sourceDocumentId: msg.source.documentId,
-      sourceOrigin: msg.source.origin,
-      sourceType: msg.source.type,
-      sourceIframeDomPath: msg.source.iframeDomPath,
-      sourceIframeSrc: msg.source.iframeSrc,
-      sourceIframeId: msg.source.iframeId,
-    });
-
-    // Create Message instance with owner element snapshots
-    const message = new Message(msg, targetOwnerElement, sourceOwnerElement);
-
-    // Handle registration messages
-    if (message.isRegistrationMessage && msg.source.windowId) {
-      const regData = message.registrationData;
-      if (regData) {
-        frameStore.processRegistration({
-          frameId: regData.frameId,
-          tabId: regData.tabId,
-          documentId: regData.documentId,
-          windowId: msg.source.windowId,
-          ownerDomPath: msg.source.iframeDomPath,
-          ownerSrc: msg.source.iframeSrc,
-          ownerId: msg.source.iframeId,
-        });
-      }
-    }
-
     this.messages.push(message);
   }
 
