@@ -1,7 +1,10 @@
 // Message class - Observable message with computed properties
 
 import { makeAutoObservable, observable } from 'mobx';
-import { windowFrameRegistry } from './WindowFrameRegistry';
+import { frameStore } from './models';
+import type { Frame } from './models/Frame';
+import type { FrameDocument } from './models/FrameDocument';
+import type { OwnerElement } from './models/OwnerElement';
 import { IMessage } from '../types';
 
 class Message implements IMessage {
@@ -18,7 +21,17 @@ class Message implements IMessage {
   // Store source separately to override frameId with computed value
   private _source: IMessage['source'];
 
-  constructor(msg: IMessage) {
+  // Raw identifiers for FrameStore lookups
+  readonly targetDocumentId: string | undefined;
+  readonly sourceWindowId: string | null;
+  readonly sourceDocumentId: string | undefined;
+  readonly sourceType: string;
+
+  // Owner element snapshots (set at message creation time)
+  readonly sourceOwnerElement: OwnerElement | undefined;
+  readonly targetOwnerElement: OwnerElement | undefined;
+
+  constructor(msg: IMessage, targetOwnerElement: OwnerElement | undefined, sourceOwnerElement: OwnerElement | undefined) {
     // Copy all properties directly
     this.id = msg.id;
     this.timestamp = msg.timestamp;
@@ -30,10 +43,26 @@ class Message implements IMessage {
     this.buffered = msg.buffered;
     this._source = msg.source;
 
+    // Raw identifiers
+    this.targetDocumentId = msg.target.documentId;
+    this.sourceWindowId = msg.source.windowId;
+    this.sourceDocumentId = msg.source.documentId;
+    this.sourceType = msg.source.type;
+
+    // Owner element snapshots
+    this.targetOwnerElement = targetOwnerElement;
+    this.sourceOwnerElement = sourceOwnerElement;
+
     makeAutoObservable<this, '_source'>(this, {
-      target: observable.ref, // Target object itself is not deeply observable
-      data: observable.ref, // Data is not deeply observable
-      _source: observable.ref // Source is immutable payload data
+      target: observable.ref,
+      data: observable.ref,
+      _source: observable.ref,
+      targetDocumentId: false,
+      sourceWindowId: false,
+      sourceDocumentId: false,
+      sourceType: false,
+      sourceOwnerElement: false,
+      targetOwnerElement: false,
     });
   }
 
@@ -49,7 +78,7 @@ class Message implements IMessage {
     return { frameId: data.frameId, tabId: data.tabId };
   }
 
-  // Source with computed frameId
+  // Source with computed frameId (backward compatibility with IMessage)
   get source(): IMessage['source'] {
     return {
       ...this._source,
@@ -57,22 +86,47 @@ class Message implements IMessage {
     };
   }
 
-  // Computed frameId - automatically updates when windowFrameRegistry changes
+  // Computed frameId - automatically updates when frameStore changes
   private get computedFrameId(): number | undefined {
     // If message has native frameId (e.g., parent messages), use it
     if (this._source.frameId !== undefined) {
       return this._source.frameId;
     }
 
-    // Otherwise, look up from registration map (e.g., child messages)
-    if (this._source.windowId) {
-      const registration = windowFrameRegistry.get(this._source.windowId);
-      if (registration) {
-        return registration.frameId;
-      }
+    // Try resolving via FrameStore
+    const sourceDoc = this.sourceDocument;
+    if (sourceDoc?.frame) {
+      return sourceDoc.frame.frameId;
     }
 
     return undefined;
+  }
+
+  // Computed: target FrameDocument
+  get targetDocument(): FrameDocument | undefined {
+    return frameStore.getDocumentById(this.targetDocumentId);
+  }
+
+  // Computed: source FrameDocument
+  get sourceDocument(): FrameDocument | undefined {
+    if (this.sourceDocumentId) {
+      const doc = frameStore.getDocumentById(this.sourceDocumentId);
+      if (doc) return doc;
+    }
+    if (this.sourceWindowId) {
+      return frameStore.getDocumentByWindowId(this.sourceWindowId);
+    }
+    return undefined;
+  }
+
+  // Computed: target Frame
+  get targetFrame(): Frame | undefined {
+    return this.targetDocument?.frame;
+  }
+
+  // Computed: source Frame
+  get sourceFrame(): Frame | undefined {
+    return this.sourceDocument?.frame;
   }
 }
 

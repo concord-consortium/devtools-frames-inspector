@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { store } from '../../store';
 import { requestFrameHierarchy } from '../../connection';
 import { FrameInfo } from '../../types';
+import { FrameDetail } from '../shared/FrameDetail';
 
 // Frame row component
 const FrameRow = observer(({ frame, depth }: { frame: FrameInfo; depth: number }) => {
@@ -66,14 +67,13 @@ const FrameTable = observer(() => {
 
 // Frame detail pane
 const FrameDetailPane = observer(() => {
-  const frame = store.selectedFrame;
-  const ownerInfo = frame ? store.getOwnerInfo(frame.frameId) : undefined;
+  const frameInfo = store.selectedFrame;
 
   const handleClose = () => {
     store.selectFrame(null);
   };
 
-  if (!frame) {
+  if (!frameInfo) {
     return (
       <div className="detail-pane hidden">
         <div className="detail-tabs">
@@ -87,6 +87,11 @@ const FrameDetailPane = observer(() => {
     );
   }
 
+  // Get Frame model for non-opener frames
+  const frameModel = typeof frameInfo.frameId === 'number'
+    ? store.getFrame(frameInfo.frameId)
+    : undefined;
+
   return (
     <div className="detail-pane">
       <div className="detail-tabs">
@@ -97,23 +102,16 @@ const FrameDetailPane = observer(() => {
         <div className="frame-properties">
           <table className="context-table">
             <tbody>
-              <tr><th>Frame ID</th><td>{frame.frameId}</td></tr>
-              <tr><th>URL</th><td>{frame.url}</td></tr>
-              <tr><th>Origin</th><td>{frame.origin}</td></tr>
-              <tr><th>Title</th><td>{frame.title || '(none)'}</td></tr>
-              <tr><th>Parent</th><td>{frame.parentFrameId === -1 ? '-' : `frame[${frame.parentFrameId}]`}</td></tr>
-              {ownerInfo?.ownerDomPath && (
-                <tr><th>Owner Element</th><td>{ownerInfo.ownerDomPath}</td></tr>
-              )}
+              <FrameDetail frame={frameModel} />
             </tbody>
           </table>
         </div>
         <div className="frame-iframes">
-          <h4>Child iframes ({frame.iframes.length})</h4>
-          {frame.iframes.length === 0 ? (
+          <h4>Child iframes ({frameInfo.iframes.length})</h4>
+          {frameInfo.iframes.length === 0 ? (
             <p className="placeholder">No iframes in this frame</p>
           ) : (
-            frame.iframes.map((iframe, index) => (
+            frameInfo.iframes.map((iframe, index) => (
               <div key={index} className="iframe-item">
                 <div><strong>src:</strong> {iframe.src || '(empty)'}</div>
                 <div><strong>id:</strong> {iframe.id || '(none)'}</div>

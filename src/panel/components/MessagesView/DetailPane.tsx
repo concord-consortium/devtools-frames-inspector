@@ -1,13 +1,13 @@
 // Detail pane component for Messages view
 
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { store } from '../../store';
 import { Message } from '../../Message';
-import { windowFrameRegistry } from '../../WindowFrameRegistry';
 import { FIELD_INFO } from '../../field-info';
 import { JsonTree } from '../shared/JsonTree';
 import { FieldLabel } from '../shared/FieldInfoPopup';
+import { FrameDetail } from '../shared/FrameDetail';
 
 // Data tab content
 const DataTab = observer(({ message }: { message: Message }) => {
@@ -57,21 +57,6 @@ const SeparatorRow = () => (
 
 // Context tab content
 const ContextTab = observer(({ message }: { message: Message }) => {
-  const sourceType = message.source.type;
-
-  // Get source frame info
-  const sourceFrameId = message.source.frameId;
-  let sourceTabId: number | undefined = undefined;
-  if (message.source.windowId) {
-    const registration = windowFrameRegistry.get(message.source.windowId);
-    if (registration) {
-      sourceTabId = registration.tabId;
-    }
-  }
-
-  // Get target owner info (iframe element that contains the target frame)
-  const targetOwnerInfo = store.getOwnerInfo(message.target.frameId);
-
   return (
     <table className="context-table">
       <tbody>
@@ -84,47 +69,29 @@ const ContextTab = observer(({ message }: { message: Message }) => {
         {store.settings.showExtraMessageInfo && (
           <>
             <Field id="buffered">{message.buffered ? 'Yes' : 'No'}</Field>
-            {message.source.windowId && (
-              <Field id="windowId">{message.source.windowId}</Field>
+            {message.sourceWindowId && (
+              <Field id="windowId">{message.sourceWindowId}</Field>
             )}
           </>
         )}
 
         <SeparatorRow />
-        <Field id="targetUrl">{message.target.url}</Field>
-        <Field id="targetOrigin">{message.target.origin}</Field>
-        <Field id="targetTitle">{message.target.documentTitle || '(none)'}</Field>
-        <Field id="targetFrame">{`frame[${message.target.frameId}]`}</Field>
-        {targetOwnerInfo?.ownerDomPath && (
-          <Field id="targetOwnerElement">{targetOwnerInfo.ownerDomPath}</Field>
-        )}
+        <FrameDetail
+          frame={message.targetFrame}
+          document={message.targetDocument}
+          ownerElement={message.targetOwnerElement}
+        />
         {message.target.frameInfoError && (
           <Field id="targetFrameError">{message.target.frameInfoError}</Field>
         )}
 
         <SeparatorRow />
-        <Field id="sourceType">{store.getDirectionIcon(sourceType)} {sourceType}</Field>
-        <Field id="sourceOrigin">{message.source.origin}</Field>
-        {sourceFrameId !== undefined && (
-          <Field id="sourceFrame">{`frame[${sourceFrameId}]`}</Field>
-        )}
-        {sourceTabId !== undefined && (
-          <Field id="sourceTab">{`tab[${sourceTabId}]`}</Field>
-        )}
-
-        {sourceType === 'child' && (
-          <>
-            {message.source.iframeSrc && (
-              <Field id="sourceIframeSrc">{message.source.iframeSrc}</Field>
-            )}
-            {message.source.iframeId && (
-              <Field id="sourceIframeId">{message.source.iframeId}</Field>
-            )}
-            {message.source.iframeDomPath && (
-              <Field id="sourceIframeDomPath">{message.source.iframeDomPath}</Field>
-            )}
-          </>
-        )}
+        <FrameDetail
+          frame={message.sourceFrame}
+          document={message.sourceDocument}
+          ownerElement={message.sourceOwnerElement}
+          sourceType={message.sourceType}
+        />
       </tbody>
     </table>
   );

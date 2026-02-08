@@ -29,15 +29,6 @@ export interface Settings {
   showRegistrationMessages: boolean;
 }
 
-export interface WindowFrameRegistration {
-  frameId: number;
-  tabId: number;
-  // Owner iframe info (the iframe element in the parent that contains this frame)
-  ownerDomPath?: string;
-  ownerSrc?: string;
-  ownerId?: string;
-}
-
 export type ViewType = 'messages' | 'hierarchy' | 'settings';
 export type DetailTabType = 'data' | 'context';
 export type SortDirection = 'asc' | 'desc';

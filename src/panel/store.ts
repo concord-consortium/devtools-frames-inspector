@@ -1,18 +1,16 @@
 // MobX store for Frames Inspector panel
 
-import { makeAutoObservable, reaction } from 'mobx';
+import { makeAutoObservable } from 'mobx';
 import {
-  FrameInfo,
   Settings,
-  WindowFrameRegistration,
   ViewType,
   DetailTabType,
   SortDirection,
   ALL_COLUMNS
 } from './types';
-import { IMessage } from '../types';
+import { IMessage, FrameInfo } from '../types';
 import { Message } from './Message';
-import { windowFrameRegistry } from './WindowFrameRegistry';
+import { Frame, frameStore } from './models';
 
 class PanelStore {
   // Tab ID for the inspected window
@@ -96,14 +94,9 @@ class PanelStore {
     return this.frameHierarchy.find(f => f.frameId === this.selectedFrameId);
   }
 
-  // Get owner iframe info for a frame by its frameId (in the current tab)
-  getOwnerInfo(frameId: number | string): WindowFrameRegistration | undefined {
-    for (const reg of windowFrameRegistry.values()) {
-      if (reg.frameId === frameId && reg.tabId === this.tabId) {
-        return reg;
-      }
-    }
-    return undefined;
+  // Get the Frame model for a given frameId in the current tab
+  getFrame(frameId: number): Frame | undefined {
+    return frameStore.getFrame(this.tabId, frameId);
   }
 
   // Get sortable value for a message
@@ -205,16 +198,8 @@ class PanelStore {
           const filterTabId = parsed.tabId !== null ? parsed.tabId : this.tabId;
           const filterFrameId = parsed.frameId;
 
-          const sourceFrameId = msg.source.frameId;
-          let sourceTabId = this.tabId;
-          if (msg.source.windowId) {
-            const registration = windowFrameRegistry.get(msg.source.windowId);
-            if (registration?.tabId !== undefined) {
-              sourceTabId = registration.tabId;
-            }
-          }
-
-          if (sourceFrameId === filterFrameId && sourceTabId === filterTabId) {
+          const sourceFrame = msg.sourceFrame;
+          if (sourceFrame && sourceFrame.frameId === filterFrameId && sourceFrame.tabId === filterTabId) {
             return true;
           }
 
@@ -251,19 +236,38 @@ class PanelStore {
   addMessage(msg: IMessage): void {
     if (!this.isRecording) return;
 
-    // Create Message instance first
-    const message = new Message(msg);
+    // Process through FrameStore to create/update Frame and FrameDocument instances
+    const { targetOwnerElement, sourceOwnerElement } = frameStore.processMessage({
+      tabId: this.tabId,
+      targetDocumentId: msg.target.documentId!,
+      targetFrameId: msg.target.frameId,
+      targetUrl: msg.target.url,
+      targetOrigin: msg.target.origin,
+      targetTitle: msg.target.documentTitle,
+      sourceWindowId: msg.source.windowId,
+      sourceDocumentId: msg.source.documentId,
+      sourceOrigin: msg.source.origin,
+      sourceType: msg.source.type,
+      sourceIframeDomPath: msg.source.iframeDomPath,
+      sourceIframeSrc: msg.source.iframeSrc,
+      sourceIframeId: msg.source.iframeId,
+    });
+
+    // Create Message instance with owner element snapshots
+    const message = new Message(msg, targetOwnerElement, sourceOwnerElement);
 
     // Handle registration messages
-    if (message.isRegistrationMessage && message.source.windowId) {
+    if (message.isRegistrationMessage && msg.source.windowId) {
       const regData = message.registrationData;
-      if (regData) {
-        windowFrameRegistry.set(message.source.windowId, {
+      if (regData && msg.target.documentId) {
+        frameStore.processRegistration({
           frameId: regData.frameId,
           tabId: regData.tabId,
-          ownerDomPath: message.source.iframeDomPath || undefined,
-          ownerSrc: message.source.iframeSrc || undefined,
-          ownerId: message.source.iframeId || undefined
+          documentId: msg.target.documentId,
+          windowId: msg.source.windowId,
+          ownerDomPath: msg.source.iframeDomPath,
+          ownerSrc: msg.source.iframeSrc,
+          ownerId: msg.source.iframeId,
         });
       }
     }
@@ -322,6 +326,10 @@ class PanelStore {
 
   setFrameHierarchy(frames: FrameInfo[]): void {
     this.frameHierarchy = frames;
+
+    // Process non-opener frames through FrameStore
+    const numericFrames = frames.filter(f => typeof f.frameId === 'number') as Array<FrameInfo & { frameId: number }>;
+    frameStore.processHierarchy(this.tabId, numericFrames);
   }
 
   selectFrame(frameId: string | number | null): void {
