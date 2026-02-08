@@ -76,16 +76,18 @@ const ContextTab = observer(({ message }: { message: Message }) => {
         )}
 
         <SeparatorRow />
+        <tr><th colSpan={2} className="section-heading">Target</th></tr>
         <FrameDetail
           frame={message.targetFrame}
           document={message.targetDocument}
           ownerElement={message.targetOwnerElement}
         />
         {message.target.frameInfoError && (
-          <Field id="targetFrameError">{message.target.frameInfoError}</Field>
+          <Field id="frameError">{message.target.frameInfoError}</Field>
         )}
 
         <SeparatorRow />
+        <tr><th colSpan={2} className="section-heading">Source</th></tr>
         <FrameDetail
           frame={message.sourceFrame}
           document={message.sourceDocument}

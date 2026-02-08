@@ -43,30 +43,30 @@ export const FrameDetail = observer(({ frame, document: docOverride, ownerElemen
         <Field id="sourceType">{store.getDirectionIcon(sourceType)} {sourceType}</Field>
       )}
       {frame && (
-        <Field id="targetFrame">{`frame[${frame.frameId}]`}</Field>
+        <Field id="frameId">{`frame[${frame.frameId}]`}</Field>
       )}
       {doc?.url && (
-        <Field id="targetUrl">{doc.url}</Field>
+        <Field id="document.url">{doc.url}</Field>
       )}
       {doc?.origin && (
-        <Field id="targetOrigin">{doc.origin}</Field>
+        <Field id="document.origin">{doc.origin}</Field>
       )}
       {doc?.title && (
-        <Field id="targetTitle">{doc.title}</Field>
+        <Field id="document.title">{doc.title}</Field>
       )}
       {frame && frame.parentFrameId !== -1 && (
-        <Field id="targetFrame">{`Parent: frame[${frame.parentFrameId}]`}</Field>
+        <Field id="parentFrameId">{`frame[${frame.parentFrameId}]`}</Field>
       )}
       {owner && (
         <>
           {owner.domPath && (
-            <Field id="targetOwnerElement">{owner.domPath}</Field>
+            <Field id="ownerElement.domPath">{owner.domPath}</Field>
           )}
           {owner.src && (
-            <Field id="sourceIframeSrc">{owner.src}</Field>
+            <Field id="ownerElement.src">{owner.src}</Field>
           )}
           {owner.id && (
-            <Field id="sourceIframeId">{owner.id}</Field>
+            <Field id="ownerElement.id">{owner.id}</Field>
           )}
         </>
       )}

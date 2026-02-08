@@ -112,19 +112,19 @@ class PanelStore {
   getCellValue(msg: Message, colId: string): string {
     switch (colId) {
       case 'timestamp': return this.formatTimestamp(msg.timestamp);
-      case 'direction': return this.getDirectionIcon(msg.source.type);
-      case 'targetUrl': return msg.target.url;
-      case 'targetOrigin': return msg.target.origin;
-      case 'targetTitle': return msg.target.documentTitle || '';
-      case 'sourceOrigin': return msg.source.origin;
-      case 'sourceType': return msg.source.type;
-      case 'sourceFrameId': {
-        const frameId = msg.source.frameId;
-        return frameId !== undefined ? `frame[${frameId}]` : '';
+      case 'direction': return this.getDirectionIcon(msg.sourceType);
+      case 'target.document.url': return msg.targetDocument?.url || '';
+      case 'target.document.origin': return msg.targetDocument?.origin || '';
+      case 'target.document.title': return msg.targetDocument?.title || '';
+      case 'source.document.origin': return msg.sourceDocument?.origin || '';
+      case 'sourceType': return msg.sourceType;
+      case 'source.frameId': {
+        const frame = msg.sourceFrame;
+        return frame ? `frame[${frame.frameId}]` : '';
       }
-      case 'sourceIframeSrc': return msg.source.iframeSrc || '';
-      case 'sourceIframeId': return msg.source.iframeId || '';
-      case 'sourceIframeDomPath': return msg.source.iframeDomPath || '';
+      case 'source.ownerElement.src': return msg.sourceOwnerElement?.src || '';
+      case 'source.ownerElement.id': return msg.sourceOwnerElement?.id || '';
+      case 'source.ownerElement.domPath': return msg.sourceOwnerElement?.domPath || '';
       case 'messageType': return msg.messageType || '';
       case 'dataPreview': return msg.dataPreview;
       case 'dataSize': return this.formatSize(msg.dataSize);

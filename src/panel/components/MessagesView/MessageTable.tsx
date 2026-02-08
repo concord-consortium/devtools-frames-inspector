@@ -1,9 +1,9 @@
 // MessageTable component for Messages view
 
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { store } from '../../store';
 import { ALL_COLUMNS } from '../../types';
+import { getColumnLabel } from '../../field-info';
 import { Message } from '../../Message';
 
 // Column header with resize handle
@@ -45,7 +45,7 @@ const ColumnHeader = observer(({ columnId }: { columnId: string }) => {
       onClick={handleClick}
       onContextMenu={handleContextMenu}
     >
-      {column.label}
+      {getColumnLabel(column.id)}
       <div
         className="column-resize-handle"
         onMouseDown={handleResizeMouseDown}
@@ -96,7 +96,7 @@ function showColumnMenu(x: number, y: number) {
     item.innerHTML = `
       <label>
         <input type="checkbox" ${store.visibleColumns[col.id] ? 'checked' : ''}>
-        ${col.label}
+        ${getColumnLabel(col.id)}
       </label>
     `;
 
@@ -142,15 +142,15 @@ if (typeof document !== 'undefined') {
         case 'messageType':
           filterStr = `type:${msg.messageType || ''}`;
           break;
-        case 'targetOrigin':
-          filterStr = `target:${msg.target.origin}`;
+        case 'target.document.origin':
+          filterStr = `target:${store.getCellValue(msg, colId)}`;
           break;
-        case 'sourceOrigin':
-          filterStr = `source:${msg.source?.origin || ''}`;
+        case 'source.document.origin':
+          filterStr = `source:${store.getCellValue(msg, colId)}`;
           break;
         case 'direction':
         case 'sourceType':
-          filterStr = `sourceType:${msg.source?.type || 'unknown'}`;
+          filterStr = `sourceType:${msg.sourceType}`;
           break;
         default:
           filterStr = store.getCellValue(msg, colId);
@@ -185,7 +185,7 @@ const MessageRow = observer(({ message }: { message: Message }) => {
         if (!store.visibleColumns[col.id]) return null;
 
         const value = store.getCellValue(message, col.id);
-        const dirClass = col.id === 'direction' ? `dir-${message.source.type}` : '';
+        const dirClass = col.id === 'direction' ? `dir-${message.sourceType}` : '';
 
         return (
           <td
