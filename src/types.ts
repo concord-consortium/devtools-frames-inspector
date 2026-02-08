@@ -77,7 +77,7 @@ export interface FrameIdentityMessage {
   type: 'frame-identity';
   frameId: number;
   tabId: number;
-  documentId?: string;
+  documentId: string;
 }
 
 export interface GetFrameInfoMessage {

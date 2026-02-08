@@ -2,19 +2,6 @@
 
 // Re-export shared types
 export type { IMessage, CapturedMessage, FrameInfo } from '../types';
-import type { IMessage } from '../types';
-
-// Registration message data structure
-export interface RegistrationMessageData {
-  type: '__frames_inspector_register__';
-  frameId: number;
-  tabId: number;
-}
-
-// IMessage with typed registration data
-export interface RegistrationCapturedMessage extends IMessage {
-  data: RegistrationMessageData;
-}
 
 export interface ColumnDef {
   id: string;

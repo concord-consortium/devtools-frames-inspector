@@ -75,14 +75,16 @@ async function sendFrameIdentity(tabId: number, frameId: number): Promise<void> 
 
     if (enabled) {
       // Look up the frame's documentId so the content script can include it
-      // in its registration postMessage
+      // in its registration postMessage.
+      // If the frame isn't committed yet, skip — onCommitted will re-trigger this.
       let documentId: string | undefined;
       try {
         const frameInfo = await chrome.webNavigation.getFrame({ tabId, frameId });
         documentId = frameInfo?.documentId;
       } catch {
-        // Frame may not be committed yet
+        return;
       }
+      if (documentId == null) return;
 
       const message: FrameIdentityMessage = {
         type: 'frame-identity',

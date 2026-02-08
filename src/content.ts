@@ -21,7 +21,7 @@ declare global {
     type: '__frames_inspector_register__';
     frameId: number;
     tabId: number;
-    documentId?: string;
+    documentId: string;
   }
 
   // Send registration messages to parent and opener

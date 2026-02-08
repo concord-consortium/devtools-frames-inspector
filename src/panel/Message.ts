@@ -72,9 +72,9 @@ class Message implements IMessage {
   }
 
   // Get registration data (cached getter, only valid if isRegistrationMessage is true)
-  get registrationData(): { frameId: number; tabId: number; documentId?: string } | null {
+  get registrationData(): { frameId: number; tabId: number; documentId: string } | null {
     if (!this.isRegistrationMessage) return null;
-    const data = this.data as { frameId: number; tabId: number; documentId?: string };
+    const data = this.data as { frameId: number; tabId: number; documentId: string };
     return { frameId: data.frameId, tabId: data.tabId, documentId: data.documentId };
   }
 
