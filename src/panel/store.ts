@@ -259,11 +259,11 @@ class PanelStore {
     // Handle registration messages
     if (message.isRegistrationMessage && msg.source.windowId) {
       const regData = message.registrationData;
-      if (regData && msg.target.documentId) {
+      if (regData && regData.documentId) {
         frameStore.processRegistration({
           frameId: regData.frameId,
           tabId: regData.tabId,
-          documentId: msg.target.documentId,
+          documentId: regData.documentId,
           windowId: msg.source.windowId,
           ownerDomPath: msg.source.iframeDomPath,
           ownerSrc: msg.source.iframeSrc,

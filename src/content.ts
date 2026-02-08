@@ -21,6 +21,7 @@ declare global {
     type: '__frames_inspector_register__';
     frameId: number;
     tabId: number;
+    documentId?: string;
   }
 
   // Send registration messages to parent and opener
@@ -228,7 +229,8 @@ declare global {
       setTimeout(() => sendRegistrationMessages({
         type: '__frames_inspector_register__',
         frameId: message.frameId,
-        tabId: message.tabId
+        tabId: message.tabId,
+        documentId: message.documentId
       }), 500);
     }
 
