@@ -75,7 +75,7 @@ export const FIELD_INFO: Record<string, FieldInfoEntry> = {
     label: 'Document Origin',
     description: 'The origin of the document loaded in this frame.',
     technical: 'Obtained from window.location.origin of the frame.',
-    filter: 'target:example.com'
+    filter: 'target:example.com / source:example.com'
   },
   'document.title': {
     label: 'Document Title',
