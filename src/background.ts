@@ -74,10 +74,23 @@ async function sendFrameIdentity(tabId: number, frameId: number): Promise<void> 
     const enabled = result.enableFrameRegistration !== false;
 
     if (enabled) {
+      // Look up the frame's documentId so the content script can include it
+      // in its registration postMessage.
+      // If the frame isn't committed yet, skip — onCommitted will re-trigger this.
+      let documentId: string | undefined;
+      try {
+        const frameInfo = await chrome.webNavigation.getFrame({ tabId, frameId });
+        documentId = frameInfo?.documentId;
+      } catch {
+        return;
+      }
+      if (documentId == null) return;
+
       const message: FrameIdentityMessage = {
         type: 'frame-identity',
         frameId: frameId,
-        tabId: tabId
+        tabId: tabId,
+        documentId: documentId
       };
       await chrome.tabs.sendMessage(tabId, message, { frameId: frameId });
     }
@@ -152,6 +165,7 @@ async function getFrameHierarchy(tabId: number): Promise<FrameInfo[]> {
 
         return {
           frameId: frame.frameId,
+          documentId: frame.documentId,
           url: frame.url,
           parentFrameId: frame.parentFrameId,
           title: info?.title || '',
@@ -166,6 +180,7 @@ async function getFrameHierarchy(tabId: number): Promise<FrameInfo[]> {
         } catch { /* ignore */ }
         return {
           frameId: frame.frameId,
+          documentId: frame.documentId,
           url: frame.url,
           parentFrameId: frame.parentFrameId,
           title: '',
@@ -211,16 +226,17 @@ chrome.runtime.onMessage.addListener((
 
   // Use async IIFE to handle potential async operations
   (async () => {
-    // Enrich the payload with frameId on target and buffered flag
+    // Enrich the payload with frameId and documentId on target
     const enrichedPayload: IMessage = {
       ...message.payload,
       target: {
         ...message.payload.target,
-        frameId: frameId
+        frameId: frameId,
+        documentId: sender.documentId
       }
     };
 
-    // Add source frameId for parent messages
+    // Add source frameId and documentId for parent messages
     if (message.payload.source.type === 'parent') {
       try {
         const frame = await chrome.webNavigation.getFrame({ tabId, frameId });
@@ -232,9 +248,18 @@ chrome.runtime.onMessage.addListener((
             frameInfoError: 'No parentFrameId'
           };
         } else {
+          // Look up parent frame to get its documentId
+          let parentDocumentId: string | undefined;
+          try {
+            const parentFrame = await chrome.webNavigation.getFrame({ tabId, frameId: frame.parentFrameId });
+            parentDocumentId = parentFrame?.documentId;
+          } catch {
+            // Parent frame may no longer exist
+          }
           enrichedPayload.source = {
             ...enrichedPayload.source,
-            frameId: frame.parentFrameId
+            frameId: frame.parentFrameId,
+            documentId: parentDocumentId
           };
         }
       } catch (e) {

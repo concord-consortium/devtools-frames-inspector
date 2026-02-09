@@ -1,18 +1,16 @@
 // MobX store for Frames Inspector panel
 
-import { makeAutoObservable, reaction } from 'mobx';
+import { makeAutoObservable } from 'mobx';
 import {
-  FrameInfo,
   Settings,
-  WindowFrameRegistration,
   ViewType,
   DetailTabType,
   SortDirection,
   ALL_COLUMNS
 } from './types';
-import { IMessage } from '../types';
+import { FrameInfo } from '../types';
 import { Message } from './Message';
-import { windowFrameRegistry } from './WindowFrameRegistry';
+import { Frame, frameStore } from './models';
 
 class PanelStore {
   // Tab ID for the inspected window
@@ -96,14 +94,9 @@ class PanelStore {
     return this.frameHierarchy.find(f => f.frameId === this.selectedFrameId);
   }
 
-  // Get owner iframe info for a frame by its frameId (in the current tab)
-  getOwnerInfo(frameId: number | string): WindowFrameRegistration | undefined {
-    for (const reg of windowFrameRegistry.values()) {
-      if (reg.frameId === frameId && reg.tabId === this.tabId) {
-        return reg;
-      }
-    }
-    return undefined;
+  // Get the Frame model for a given frameId in the current tab
+  getFrame(frameId: number): Frame | undefined {
+    return frameStore.getFrame(this.tabId, frameId);
   }
 
   // Get sortable value for a message
@@ -119,19 +112,19 @@ class PanelStore {
   getCellValue(msg: Message, colId: string): string {
     switch (colId) {
       case 'timestamp': return this.formatTimestamp(msg.timestamp);
-      case 'direction': return this.getDirectionIcon(msg.source.type);
-      case 'targetUrl': return msg.target.url;
-      case 'targetOrigin': return msg.target.origin;
-      case 'targetTitle': return msg.target.documentTitle || '';
-      case 'sourceOrigin': return msg.source.origin;
-      case 'sourceType': return msg.source.type;
-      case 'sourceFrameId': {
-        const frameId = msg.source.frameId;
-        return frameId !== undefined ? `frame[${frameId}]` : '';
+      case 'direction': return this.getDirectionIcon(msg.sourceType);
+      case 'target.document.url': return msg.targetDocument?.url || '';
+      case 'target.document.origin': return msg.targetDocument?.origin || '';
+      case 'target.document.title': return msg.targetDocument?.title || '';
+      case 'source.document.origin': return msg.sourceDocument?.origin || '';
+      case 'sourceType': return msg.sourceType;
+      case 'source.frameId': {
+        const frame = msg.sourceFrame;
+        return frame ? `frame[${frame.frameId}]` : '';
       }
-      case 'sourceIframeSrc': return msg.source.iframeSrc || '';
-      case 'sourceIframeId': return msg.source.iframeId || '';
-      case 'sourceIframeDomPath': return msg.source.iframeDomPath || '';
+      case 'source.ownerElement.src': return msg.sourceOwnerElement?.src || '';
+      case 'source.ownerElement.id': return msg.sourceOwnerElement?.id || '';
+      case 'source.ownerElement.domPath': return msg.sourceOwnerElement?.domPath || '';
       case 'messageType': return msg.messageType || '';
       case 'dataPreview': return msg.dataPreview;
       case 'dataSize': return this.formatSize(msg.dataSize);
@@ -205,16 +198,8 @@ class PanelStore {
           const filterTabId = parsed.tabId !== null ? parsed.tabId : this.tabId;
           const filterFrameId = parsed.frameId;
 
-          const sourceFrameId = msg.source.frameId;
-          let sourceTabId = this.tabId;
-          if (msg.source.windowId) {
-            const registration = windowFrameRegistry.get(msg.source.windowId);
-            if (registration?.tabId !== undefined) {
-              sourceTabId = registration.tabId;
-            }
-          }
-
-          if (sourceFrameId === filterFrameId && sourceTabId === filterTabId) {
+          const sourceFrame = msg.sourceFrame;
+          if (sourceFrame && sourceFrame.frameId === filterFrameId && sourceFrame.tabId === filterTabId) {
             return true;
           }
 
@@ -248,26 +233,8 @@ class PanelStore {
   }
 
   // Actions
-  addMessage(msg: IMessage): void {
+  addMessage(message: Message): void {
     if (!this.isRecording) return;
-
-    // Create Message instance first
-    const message = new Message(msg);
-
-    // Handle registration messages
-    if (message.isRegistrationMessage && message.source.windowId) {
-      const regData = message.registrationData;
-      if (regData) {
-        windowFrameRegistry.set(message.source.windowId, {
-          frameId: regData.frameId,
-          tabId: regData.tabId,
-          ownerDomPath: message.source.iframeDomPath || undefined,
-          ownerSrc: message.source.iframeSrc || undefined,
-          ownerId: message.source.iframeId || undefined
-        });
-      }
-    }
-
     this.messages.push(message);
   }
 
@@ -322,6 +289,10 @@ class PanelStore {
 
   setFrameHierarchy(frames: FrameInfo[]): void {
     this.frameHierarchy = frames;
+
+    // Process non-opener frames through FrameStore
+    const numericFrames = frames.filter(f => typeof f.frameId === 'number') as Array<FrameInfo & { frameId: number }>;
+    frameStore.processHierarchy(this.tabId, numericFrames);
   }
 
   selectFrame(frameId: string | number | null): void {

@@ -400,6 +400,14 @@ body {
   border: none;
 }
 
+.context-table th.section-heading {
+  text-align: left;
+  font-weight: 700;
+  color: #000;
+  padding-top: 4px;
+  width: auto;
+}
+
 /* Copy button */
 .copy-btn {
   padding: 4px 8px;

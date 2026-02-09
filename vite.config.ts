@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -57,6 +57,12 @@ export default defineConfig(({ mode }) => ({
     // Don't minify for easier debugging during development
     minify: mode === 'production',
     sourcemap: mode !== 'production',
+  },
+
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
   },
 
   // Dev server configuration (for future HMR with React)
