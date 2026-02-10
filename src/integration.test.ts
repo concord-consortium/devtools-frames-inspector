@@ -1,59 +1,57 @@
 // Integration tests: content script → background service worker → panel
 //
-// These tests exercise the real background.ts and content-core.ts code
+// These tests exercise the real background-core.ts and content-core.ts code
 // with mock Chrome APIs wired together by ChromeExtensionEnv.
 //
 // Test frame hierarchy:
 //   Parent (frameId=0) — https://parent.example.com
 //   └── Child (frameId=1) — https://child.example.com
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ChromeExtensionEnv, createMockWindow, addIframeToWindow, MockWindow, flushPromises } from './test/chrome-extension-env';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { ChromeExtensionEnv, HarnessWindow, HarnessIFrame, flushPromises } from './test/chrome-extension-env';
 import { initContentScript } from './content-core';
+import { initBackgroundScript } from './background-core';
 
 const TAB_ID = 1;
 
 describe('content → background → panel integration', () => {
   let env: ChromeExtensionEnv;
 
-  beforeEach(async () => {
-    vi.resetModules();
+  beforeEach(() => {
     env = new ChromeExtensionEnv();
     // Disable frame registration to keep tests focused on message routing
     env.storageData.enableFrameRegistration = false;
-    (globalThis as any).chrome = env.createBackgroundChrome();
-    // Import background.ts — its module-level code registers listeners on the mock chrome
-    await import('./background');
+    initBackgroundScript(env.createBackgroundChrome());
   });
 
   // --- Frame + window setup helpers ---
 
   function setupTwoFrames() {
     // Register frames in webNavigation
-    env.addFrame({
+    const parentFrame = env.addFrame({
       tabId: TAB_ID, frameId: 0, parentFrameId: -1,
       documentId: 'doc-parent', url: 'https://parent.example.com/',
     });
-    env.addFrame({
+    const childFrame = env.addFrame({
       tabId: TAB_ID, frameId: 1, parentFrameId: 0,
       documentId: 'doc-child', url: 'https://child.example.com/',
     });
 
-    // Create mock windows
-    const childWin = createMockWindow({
+    // Create harness windows
+    const childWin = new HarnessWindow({
       location: { href: 'https://child.example.com/', origin: 'https://child.example.com' },
       title: 'Child Page',
     });
-    const parentWin = createMockWindow({
+    const parentWin = new HarnessWindow({
       location: { href: 'https://parent.example.com/', origin: 'https://parent.example.com' },
       title: 'Parent Page',
-      iframes: [{ src: 'https://child.example.com/', id: 'child-iframe', contentWindow: childWin }],
     });
+    parentWin.addIframe(new HarnessIFrame('https://child.example.com/', 'child-iframe', childWin));
     childWin.parent = parentWin;
 
     // Create content script chrome APIs and initialize content scripts
-    const parentChrome = env.createContentChrome(TAB_ID, 0, 'doc-parent');
-    const childChrome = env.createContentChrome(TAB_ID, 1, 'doc-child');
+    const parentChrome = env.createContentChrome(parentFrame);
+    const childChrome = env.createContentChrome(childFrame);
     initContentScript(parentWin as unknown as Window, parentChrome);
     initContentScript(childWin as unknown as Window, childChrome);
 
@@ -183,7 +181,7 @@ describe('content → background → panel integration', () => {
     await flushPromises();
 
     const POPUP_TAB_ID = 2;
-    env.addFrame({
+    const popupFrame = env.addFrame({
       tabId: POPUP_TAB_ID, frameId: 0, parentFrameId: -1,
       documentId: 'doc-popup', url: 'https://popup.example.com/',
     });
@@ -192,11 +190,11 @@ describe('content → background → panel integration', () => {
     env.bgOnCreatedNavTarget.fire({ sourceTabId: TAB_ID, tabId: POPUP_TAB_ID, url: 'https://popup.example.com/' });
 
     // Create content script in popup
-    const popupWin = createMockWindow({
+    const popupWin = new HarnessWindow({
       location: { href: 'https://popup.example.com/', origin: 'https://popup.example.com' },
       title: 'Popup',
     });
-    const popupChrome = env.createContentChrome(POPUP_TAB_ID, 0, 'doc-popup');
+    const popupChrome = env.createContentChrome(popupFrame);
     initContentScript(popupWin as unknown as Window, popupChrome);
 
     // Message sent before popup panel connects — should be buffered
