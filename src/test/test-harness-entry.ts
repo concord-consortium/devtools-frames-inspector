@@ -13,7 +13,7 @@ const TAB_ID = 1;
 // 1. Set up the test environment
 // ---------------------------------------------------------------------------
 
-const env = new ChromeExtensionEnv();
+const env = new ChromeExtensionEnv(initContentScript);
 
 // Initialize background service worker
 initBackgroundScript(env.createBackgroundChrome());
@@ -23,10 +23,7 @@ const topFrame = env.createTab({ tabId: TAB_ID, url: 'https://parent.example.com
 const childFrame = topFrame.addIframe({ url: 'https://child.example.com/', iframeId: 'child-iframe', title: 'Child Page' });
 const parentWin = topFrame.window!;
 const childWin = childFrame.window!;
-
-// Initialize content scripts
-initContentScript(parentWin as unknown as Window, env.createContentChrome(topFrame));
-initContentScript(childWin as unknown as Window, env.createContentChrome(childFrame));
+// Content scripts are auto-injected when the panel connects (via executeScript mock)
 
 // ---------------------------------------------------------------------------
 // 2. Set up global `chrome` object for the panel code
@@ -103,9 +100,6 @@ async function init() {
     TAB_ID,
     flushPromises,
 
-    // Core init functions for new content scripts
-    initContentScript,
-
     // Convenience: send a message from child → parent (via cross-origin proxy)
     sendChildToParent(data: any) {
       childWin.parent.postMessage(data, '*');
@@ -114,13 +108,6 @@ async function init() {
     // Convenience: send a message from parent → child (via cross-origin proxy)
     sendParentToChild(data: any) {
       parentWin.frames[0].postMessage(data, '*');
-    },
-
-    // Add a new iframe and wire up a content script for it
-    addIframe(parentFrame: typeof topFrame, config: { url: string; iframeId?: string; title?: string }) {
-      const frame = parentFrame.addIframe(config);
-      initContentScript(frame.window! as unknown as Window, env.createContentChrome(frame));
-      return frame;
     },
   };
 

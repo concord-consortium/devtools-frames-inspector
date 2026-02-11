@@ -18,7 +18,7 @@ describe('content → background → panel integration', () => {
   let env: ChromeExtensionEnv;
 
   beforeEach(() => {
-    env = new ChromeExtensionEnv();
+    env = new ChromeExtensionEnv(initContentScript);
     // Disable frame registration to keep tests focused on message routing
     env.storageData.enableFrameRegistration = false;
     initBackgroundScript(env.createBackgroundChrome());
@@ -28,14 +28,9 @@ describe('content → background → panel integration', () => {
 
   function setupTwoFrames() {
     const topFrame = env.createTab({ tabId: TAB_ID, url: 'https://parent.example.com/', title: 'Parent Page' });
-    const childFrame = topFrame.addIframe( { url: 'https://child.example.com/', iframeId: 'child-iframe', title: 'Child Page' });
+    const childFrame = topFrame.addIframe({ url: 'https://child.example.com/', iframeId: 'child-iframe', title: 'Child Page' });
 
-    const parentChrome = env.createContentChrome(topFrame);
-    const childChrome = env.createContentChrome(childFrame);
-    initContentScript(topFrame.window! as unknown as Window, parentChrome);
-    initContentScript(childFrame.window! as unknown as Window, childChrome);
-
-    return { parentWin: topFrame.window!, childWin: childFrame.window!, parentChrome, childChrome };
+    return { topFrame, childFrame, parentWin: topFrame.window!, childWin: childFrame.window! };
   }
 
   // --- Tests ---
@@ -132,43 +127,35 @@ describe('content → background → panel integration', () => {
   });
 
   it('clears panel messages on main frame navigation', async () => {
-    setupTwoFrames();
+    const { topFrame } = setupTwoFrames();
     const { messages } = env.connectPanel(TAB_ID);
     await flushPromises();
 
-    // Simulate main frame navigation
-    env.bgOnCommitted.fire({ tabId: TAB_ID, frameId: 0, url: 'https://parent.example.com/new' });
+    topFrame.navigate('https://parent.example.com/new');
 
     const clearMsgs = messages.filter(m => m.type === 'clear');
     expect(clearMsgs).toHaveLength(1);
   });
 
   it('does not clear messages on subframe navigation', async () => {
-    setupTwoFrames();
+    const { childFrame } = setupTwoFrames();
     const { messages } = env.connectPanel(TAB_ID);
     await flushPromises();
 
-    // Simulate subframe navigation
-    env.bgOnCommitted.fire({ tabId: TAB_ID, frameId: 1, url: 'https://child.example.com/new' });
+    childFrame.navigate('https://child.example.com/new');
 
     const clearMsgs = messages.filter(m => m.type === 'clear');
     expect(clearMsgs).toHaveLength(0);
   });
 
   it('buffers messages for tabs opened from monitored tabs', async () => {
-    setupTwoFrames();
+    const { topFrame } = setupTwoFrames();
     env.connectPanel(TAB_ID);
     await flushPromises();
 
     const POPUP_TAB_ID = 2;
-    const popupFrame = env.createTab({ tabId: POPUP_TAB_ID, url: 'https://popup.example.com/', title: 'Popup' });
-
-    // Simulate popup opened from monitored tab
-    env.bgOnCreatedNavTarget.fire({ sourceTabId: TAB_ID, tabId: POPUP_TAB_ID, url: 'https://popup.example.com/' });
-
-    // Create content script in popup
-    const popupChrome = env.createContentChrome(popupFrame);
-    initContentScript(popupFrame.window! as unknown as Window, popupChrome);
+    const popupFrame = env.openPopup(topFrame, { tabId: POPUP_TAB_ID, url: 'https://popup.example.com/', title: 'Popup' });
+    await flushPromises();
 
     // Message sent before popup panel connects — should be buffered
     popupFrame.window!.dispatchMessage({ type: 'early-msg' }, 'https://popup.example.com', popupFrame.window!);

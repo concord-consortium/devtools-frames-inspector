@@ -37,6 +37,13 @@ export class ChromeExtensionEnv {
   // Content script onMessage events, keyed by "tabId:frameId"
   private contentOnMessage = new Map<string, ChromeEvent<(msg: any, sender: any, sendResponse: any) => any>>();
 
+  /** Content script init function — called by the executeScript mock to inject content scripts. */
+  private _initContentScript?: (win: any, chrome: any) => void;
+
+  constructor(initContentScript?: (win: any, chrome: any) => void) {
+    this._initContentScript = initContentScript;
+  }
+
   /**
    * Create a tab with its top-level frame (frameId=0), document, and window.
    * Returns the top-level HarnessFrame (access .window for the HarnessWindow).
@@ -44,6 +51,9 @@ export class ChromeExtensionEnv {
   createTab(config: { tabId: number; url: string; title?: string }): HarnessFrame {
     const tab = new HarnessTab(config.tabId);
     this.tabs.set(config.tabId, tab);
+
+    // Share the bgOnCommitted event so frame.navigate() and addIframe() fire it directly
+    tab.onCommitted = this.bgOnCommitted;
 
     const origin = new URL(config.url).origin;
     const frame = new HarnessFrame(tab, 0, -1);
@@ -53,7 +63,26 @@ export class ChromeExtensionEnv {
       title: config.title,
     });
     tab.addFrame(frame);
+
+    // Fire onCommitted for the initial page load (like a real browser)
+    this.bgOnCommitted.fire({ tabId: config.tabId, frameId: 0, url: config.url });
+
     return frame;
+  }
+
+  /**
+   * Open a popup tab from a source frame (simulates window.open or link click).
+   * Fires onCreatedNavigationTarget first (enables buffering), then createTab
+   * fires onCommitted (triggers content script injection).
+   */
+  openPopup(sourceFrame: HarnessFrame, config: { tabId: number; url: string; title?: string }): HarnessFrame {
+    // Fire onCreatedNavigationTarget first so buffering is enabled before the page load
+    this.bgOnCreatedNavTarget.fire({
+      sourceTabId: sourceFrame.tab.id,
+      tabId: config.tabId,
+      url: config.url,
+    });
+    return this.createTab(config);
   }
 
   /**
@@ -68,7 +97,32 @@ export class ChromeExtensionEnv {
         onMessage: env.bgRuntimeOnMessage,
       },
       scripting: {
-        async executeScript() { return []; },
+        async executeScript(options: { target: { tabId: number; frameIds?: number[]; allFrames?: boolean } }) {
+          if (!env._initContentScript) return [];
+          const tab = env.tabs.get(options.target.tabId);
+          if (!tab) return [];
+
+          let frames: HarnessFrame[];
+          if (options.target.allFrames) {
+            frames = tab.getAllFrames();
+          } else if (options.target.frameIds) {
+            frames = options.target.frameIds
+              .map(fid => tab.getFrame(fid))
+              .filter((f): f is HarnessFrame => f != null);
+          } else {
+            return [];
+          }
+
+          for (const frame of frames) {
+            if (frame.window) {
+              env._initContentScript(
+                frame.window as unknown as Window,
+                env.createContentChrome(frame),
+              );
+            }
+          }
+          return [];
+        },
       },
       tabs: {
         async sendMessage(tabId: number, msg: any, options?: { frameId?: number }) {

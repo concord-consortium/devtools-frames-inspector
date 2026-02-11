@@ -1,6 +1,8 @@
 // Test harness models — vi.fn()-free representations of Tab, Frame, Document, Window, IFrame.
 // These can run in both vitest and a real browser (for Playwright-based testing).
 
+import { ChromeEvent } from './chrome-api';
+
 // ---------------------------------------------------------------------------
 // HarnessTab
 // ---------------------------------------------------------------------------
@@ -9,6 +11,10 @@ export class HarnessTab {
   readonly id: number;
   readonly frames = new Map<number, HarnessFrame>();
   private _nextFrameId = 1; // 0 is reserved for top frame
+
+  /** Fired when a frame in this tab navigates or loads. Assigned by ChromeExtensionEnv to bgOnCommitted. */
+  onCommitted: ChromeEvent<(details: { tabId: number; frameId: number; url: string }) => void> =
+    new ChromeEvent();
 
   constructor(id: number) {
     this.id = id;
@@ -79,8 +85,27 @@ export class HarnessFrame {
     const iframe = new HarnessIFrame(config.url, config.iframeId ?? '', childProxyForParent);
     parentWin.addIframeElement(iframe);
 
+    // Fire onCommitted for the iframe load (like a real browser)
+    this.tab.onCommitted.fire({ tabId: this.tab.id, frameId: childFrame.frameId, url: config.url });
+
     return childFrame;
   }
+
+  /**
+   * Navigate this frame to a new URL. Updates the document and fires the
+   * onCommitted callback (which triggers the background's webNavigation handler).
+   */
+  navigate(url: string, title?: string): void {
+    this._navCount++;
+    this.currentDocument = new HarnessDocument(`doc-f${this.frameId}-nav${this._navCount}`, url, title);
+    if (this.window) {
+      const origin = new URL(url).origin;
+      this.window.location = { href: url, origin };
+    }
+    this.tab.onCommitted.fire({ tabId: this.tab.id, frameId: this.frameId, url });
+  }
+
+  private _navCount = 0;
 
   toFrameInfo(): { tabId: number; frameId: number; parentFrameId: number; documentId: string | undefined; url: string } {
     return {
