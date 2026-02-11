@@ -10,6 +10,21 @@ declare global {
   }
 }
 
+/** Minimal window interface needed by the content script */
+export interface ContentWindow {
+  __postmessage_devtools_content__?: boolean;
+  parent: any;
+  top: any;
+  opener: any;
+  location: { href: string; origin: string };
+  document: {
+    title: string;
+    querySelectorAll(selector: string): NodeListOf<Element>;
+  };
+  frames: { length: number; [index: number]: any };
+  addEventListener(type: string, callback: (event: any) => void, capture?: boolean): void;
+}
+
 /** Minimal chrome API interface needed by the content script */
 export interface ContentChrome {
   runtime: {
@@ -24,12 +39,12 @@ export interface ContentChrome {
   };
 }
 
-export function initContentScript(win: Window, chrome: ContentChrome): void {
+export function initContentScript(win: ContentWindow, chrome: ContentChrome): void {
   // Guard against multiple injections
   if (win.__postmessage_devtools_content__) return;
   win.__postmessage_devtools_content__ = true;
 
-  const sourceWindows = new WeakMap<Window, { windowId: string }>();
+  const sourceWindows = new WeakMap<object, { windowId: string }>();
 
   interface RegistrationMessage {
     type: '__frames_inspector_register__';
@@ -92,13 +107,13 @@ export function initContentScript(win: Window, chrome: ContentChrome): void {
   }
 
   // Get or create a stable windowId for a source window
-  function getWindowId(sourceWindow: Window | MessageEventSource | null): string | null {
+  function getWindowId(sourceWindow: object | null): string | null {
     if (!sourceWindow) return null;
 
-    let entry = sourceWindows.get(sourceWindow as Window);
+    let entry = sourceWindows.get(sourceWindow);
     if (!entry) {
       entry = { windowId: generateId() };
-      sourceWindows.set(sourceWindow as Window, entry);
+      sourceWindows.set(sourceWindow, entry);
     }
     return entry.windowId;
   }
@@ -132,7 +147,7 @@ export function initContentScript(win: Window, chrome: ContentChrome): void {
   }
 
   // Determine the relationship between this window and the message source
-  function getSourceRelationship(eventSource: MessageEventSource | null): string {
+  function getSourceRelationship(eventSource: object | null): string {
     if (!eventSource) return 'unknown';
     if (eventSource === win) return 'self';
     if (eventSource === win.parent && win.parent !== win) return 'parent';
@@ -177,7 +192,7 @@ export function initContentScript(win: Window, chrome: ContentChrome): void {
 
     // For child frames, find the iframe element and include its properties
     if (sourceType === 'child') {
-      const iframes = win.document.querySelectorAll('iframe');
+      const iframes = win.document.querySelectorAll('iframe') as NodeListOf<HTMLIFrameElement>;
       for (const iframe of iframes) {
         if (iframe.contentWindow === event.source) {
           source.iframeSrc = iframe.src || null;
@@ -249,7 +264,7 @@ export function initContentScript(win: Window, chrome: ContentChrome): void {
     }
 
     if (message.type === 'get-frame-info') {
-      const iframes = Array.from(win.document.querySelectorAll('iframe')).map(iframe => ({
+      const iframes = Array.from(win.document.querySelectorAll('iframe') as NodeListOf<HTMLIFrameElement>).map(iframe => ({
         src: iframe.src || '',
         id: iframe.id || '',
         domPath: getDomPath(iframe)

@@ -82,8 +82,7 @@ export class HarnessFrame {
     parentWin.registerChildProxy(childWin, childProxyForParent);
 
     // Create iframe element with proxy as contentWindow (matches real browser behavior)
-    const iframe = new HarnessIFrame(config.url, config.iframeId ?? '', childProxyForParent);
-    parentWin.addIframeElement(iframe);
+    parentWin.addIframeElement({ src: config.url, id: config.iframeId ?? '', contentWindow: childProxyForParent });
 
     // Fire onCommitted for the iframe load (like a real browser)
     this.tab.onCommitted.fire({ tabId: this.tab.id, frameId: childFrame.frameId, url: config.url });
@@ -205,7 +204,7 @@ export interface HarnessWindowOptions {
 export class HarnessWindow {
   location: { href: string; origin: string };
   top: HarnessWindow;
-  document: { title: string; querySelectorAll(selector: string): any[] };
+  document: { title: string; querySelectorAll(selector: string): NodeListOf<Element> };
   __postmessage_devtools_content__?: boolean;
 
   private _rawParent: HarnessWindow;
@@ -214,7 +213,9 @@ export class HarnessWindow {
   private _openerProxy: CrossOriginWindowProxy | null = null;
 
   private messageListeners: ((event: any) => void)[] = [];
-  private iframeElements: HarnessIFrame[] = [];
+  // Detached div — never appended to the document.
+  // If you do the iframe src URLs will actually load.
+  private _iframeContainer = document.createElement('div');
 
   /** Proxies of child windows, keyed by the raw child HarnessWindow.
    *  Used by dispatchMessage() to resolve raw window sources to proxies. */
@@ -226,12 +227,11 @@ export class HarnessWindow {
     this.top = this; // simplified: top is self unless explicitly set
     this._rawOpener = options.opener ?? null;
 
-    const self = this;
+    const container = this._iframeContainer;
     this.document = {
       title: options.title ?? '',
-      querySelectorAll(selector: string): any[] {
-        if (selector === 'iframe') return [...self.iframeElements];
-        return [];
+      querySelectorAll(selector: string) {
+        return container.querySelectorAll(selector);
       },
     };
   }
@@ -256,8 +256,9 @@ export class HarnessWindow {
   }
 
   get frames(): any {
-    const arr: any = this.iframeElements.map(f => f.contentWindow);
-    arr.length = this.iframeElements.length;
+    const iframes = this._iframeContainer.querySelectorAll('iframe');
+    const arr: any = Array.from(iframes).map(f => f.contentWindow);
+    arr.length = iframes.length;
     return arr;
   }
 
@@ -293,8 +294,12 @@ export class HarnessWindow {
   // --- Internal wiring methods (used by ChromeExtensionEnv) ---
 
   /** Add an iframe element to this window's DOM. */
-  addIframeElement(iframe: HarnessIFrame): void {
-    this.iframeElements.push(iframe);
+  addIframeElement(config: { src: string; id: string; contentWindow: CrossOriginWindowProxy }): void {
+    const el = document.createElement('iframe');
+    el.src = config.src;
+    if (config.id) el.id = config.id;
+    Object.defineProperty(el, 'contentWindow', { value: config.contentWindow, configurable: true });
+    this._iframeContainer.appendChild(el);
   }
 
   /** Register a proxy for a child window (for dispatchMessage source resolution). */
@@ -309,22 +314,3 @@ export class HarnessWindow {
   }
 }
 
-// ---------------------------------------------------------------------------
-// HarnessIFrame
-// ---------------------------------------------------------------------------
-
-export class HarnessIFrame {
-  readonly src: string;
-  readonly id: string;
-  readonly contentWindow: CrossOriginWindowProxy;
-  readonly nodeName = 'IFRAME' as const;
-  readonly nodeType = 1; // Node.ELEMENT_NODE
-  readonly parentElement = null;
-  readonly previousElementSibling = null;
-
-  constructor(src: string, id: string, contentWindow: CrossOriginWindowProxy) {
-    this.src = src;
-    this.id = id;
-    this.contentWindow = contentWindow;
-  }
-}

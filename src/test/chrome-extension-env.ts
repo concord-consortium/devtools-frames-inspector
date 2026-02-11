@@ -10,6 +10,7 @@ import { ChromeEvent, createPortPair } from './chrome-api';
 import { HarnessTab, HarnessFrame, HarnessDocument, HarnessWindow } from './harness-models';
 import type { MockPort } from './chrome-api';
 import type { BackgroundChrome } from '../background-core';
+import type { ContentWindow, ContentChrome } from '../content-core';
 
 // Re-export for consumers
 export { ChromeEvent, createPortPair, flushPromises } from './chrome-api';
@@ -38,9 +39,9 @@ export class ChromeExtensionEnv {
   private contentOnMessage = new Map<string, ChromeEvent<(msg: any, sender: any, sendResponse: any) => any>>();
 
   /** Content script init function — called by the executeScript mock to inject content scripts. */
-  private _initContentScript?: (win: any, chrome: any) => void;
+  private _initContentScript?: (win: ContentWindow, chrome: ContentChrome) => void;
 
-  constructor(initContentScript?: (win: any, chrome: any) => void) {
+  constructor(initContentScript?: (win: ContentWindow, chrome: ContentChrome) => void) {
     this._initContentScript = initContentScript;
   }
 
@@ -116,7 +117,7 @@ export class ChromeExtensionEnv {
           for (const frame of frames) {
             if (frame.window) {
               env._initContentScript(
-                frame.window as unknown as Window,
+                frame.window,
                 env.createContentChrome(frame),
               );
             }
