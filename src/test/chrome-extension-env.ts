@@ -7,15 +7,14 @@
 // - panel chrome.runtime.connect → background's chrome.runtime.onConnect (via port pairs)
 
 import { ChromeEvent, createPortPair } from './chrome-api';
-import { HarnessTab, HarnessFrame, HarnessDocument } from './harness-models';
+import { HarnessTab, HarnessFrame, HarnessDocument, HarnessWindow } from './harness-models';
 import type { MockPort } from './chrome-api';
 import type { BackgroundChrome } from '../background-core';
 
 // Re-export for consumers
 export { ChromeEvent, createPortPair, flushPromises } from './chrome-api';
 export type { MockPort } from './chrome-api';
-export { HarnessTab, HarnessFrame, HarnessDocument, HarnessWindow, HarnessIFrame } from './harness-models';
-export type { HarnessWindowOptions } from './harness-models';
+export { HarnessTab, HarnessFrame, HarnessDocument, HarnessWindow } from './harness-models';
 
 // ---------------------------------------------------------------------------
 // ChromeExtensionEnv — wires content scripts, background, and panel together
@@ -38,21 +37,21 @@ export class ChromeExtensionEnv {
   // Content script onMessage events, keyed by "tabId:frameId"
   private contentOnMessage = new Map<string, ChromeEvent<(msg: any, sender: any, sendResponse: any) => any>>();
 
-  /** Register a frame, creating the tab if needed. Returns the HarnessFrame. */
-  addFrame(config: {
-    tabId: number;
-    frameId: number;
-    parentFrameId: number;
-    documentId: string;
-    url: string;
-  }): HarnessFrame {
-    let tab = this.tabs.get(config.tabId);
-    if (!tab) {
-      tab = new HarnessTab(config.tabId);
-      this.tabs.set(config.tabId, tab);
-    }
-    const frame = new HarnessFrame(tab, config.frameId, config.parentFrameId);
-    frame.currentDocument = new HarnessDocument(config.documentId, config.url);
+  /**
+   * Create a tab with its top-level frame (frameId=0), document, and window.
+   * Returns the top-level HarnessFrame (access .window for the HarnessWindow).
+   */
+  createTab(config: { tabId: number; url: string; title?: string }): HarnessFrame {
+    const tab = new HarnessTab(config.tabId);
+    this.tabs.set(config.tabId, tab);
+
+    const origin = new URL(config.url).origin;
+    const frame = new HarnessFrame(tab, 0, -1);
+    frame.currentDocument = new HarnessDocument(`doc-f0`, config.url, config.title);
+    frame.window = new HarnessWindow({
+      location: { href: config.url, origin },
+      title: config.title,
+    });
     tab.addFrame(frame);
     return frame;
   }

@@ -8,7 +8,7 @@
 //   └── Child (frameId=1) — https://child.example.com
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ChromeExtensionEnv, HarnessWindow, HarnessIFrame, flushPromises } from './test/chrome-extension-env';
+import { ChromeExtensionEnv, flushPromises } from './test/chrome-extension-env';
 import { initContentScript } from './content-core';
 import { initBackgroundScript } from './background-core';
 
@@ -27,35 +27,15 @@ describe('content → background → panel integration', () => {
   // --- Frame + window setup helpers ---
 
   function setupTwoFrames() {
-    // Register frames in webNavigation
-    const parentFrame = env.addFrame({
-      tabId: TAB_ID, frameId: 0, parentFrameId: -1,
-      documentId: 'doc-parent', url: 'https://parent.example.com/',
-    });
-    const childFrame = env.addFrame({
-      tabId: TAB_ID, frameId: 1, parentFrameId: 0,
-      documentId: 'doc-child', url: 'https://child.example.com/',
-    });
+    const topFrame = env.createTab({ tabId: TAB_ID, url: 'https://parent.example.com/', title: 'Parent Page' });
+    const childFrame = topFrame.addIframe( { url: 'https://child.example.com/', iframeId: 'child-iframe', title: 'Child Page' });
 
-    // Create harness windows
-    const childWin = new HarnessWindow({
-      location: { href: 'https://child.example.com/', origin: 'https://child.example.com' },
-      title: 'Child Page',
-    });
-    const parentWin = new HarnessWindow({
-      location: { href: 'https://parent.example.com/', origin: 'https://parent.example.com' },
-      title: 'Parent Page',
-    });
-    parentWin.addIframe(new HarnessIFrame('https://child.example.com/', 'child-iframe', childWin));
-    childWin.parent = parentWin;
-
-    // Create content script chrome APIs and initialize content scripts
-    const parentChrome = env.createContentChrome(parentFrame);
+    const parentChrome = env.createContentChrome(topFrame);
     const childChrome = env.createContentChrome(childFrame);
-    initContentScript(parentWin as unknown as Window, parentChrome);
-    initContentScript(childWin as unknown as Window, childChrome);
+    initContentScript(topFrame.window! as unknown as Window, parentChrome);
+    initContentScript(childFrame.window! as unknown as Window, childChrome);
 
-    return { parentWin, childWin, parentChrome, childChrome };
+    return { parentWin: topFrame.window!, childWin: childFrame.window!, parentChrome, childChrome };
   }
 
   // --- Tests ---
@@ -84,7 +64,7 @@ describe('content → background → panel integration', () => {
     expect(payload.source.iframeId).toBe('child-iframe');
     expect(payload.target.origin).toBe('https://parent.example.com');
     expect(payload.target.frameId).toBe(0);
-    expect(payload.target.documentId).toBe('doc-parent');
+    expect(payload.target.documentId).toBe('doc-f0');
   });
 
   it('delivers a parent→child postMessage to the panel', async () => {
@@ -110,10 +90,10 @@ describe('content → background → panel integration', () => {
     expect(payload.source.origin).toBe('https://parent.example.com');
     // Background enriches source with parent's frameId and documentId
     expect(payload.source.frameId).toBe(0);
-    expect(payload.source.documentId).toBe('doc-parent');
+    expect(payload.source.documentId).toBe('doc-f0');
     expect(payload.target.origin).toBe('https://child.example.com');
     expect(payload.target.frameId).toBe(1);
-    expect(payload.target.documentId).toBe('doc-child');
+    expect(payload.target.documentId).toBe('doc-f1');
   });
 
   it('delivers messages from multiple content scripts in the same test', async () => {
@@ -181,24 +161,17 @@ describe('content → background → panel integration', () => {
     await flushPromises();
 
     const POPUP_TAB_ID = 2;
-    const popupFrame = env.addFrame({
-      tabId: POPUP_TAB_ID, frameId: 0, parentFrameId: -1,
-      documentId: 'doc-popup', url: 'https://popup.example.com/',
-    });
+    const popupFrame = env.createTab({ tabId: POPUP_TAB_ID, url: 'https://popup.example.com/', title: 'Popup' });
 
     // Simulate popup opened from monitored tab
     env.bgOnCreatedNavTarget.fire({ sourceTabId: TAB_ID, tabId: POPUP_TAB_ID, url: 'https://popup.example.com/' });
 
     // Create content script in popup
-    const popupWin = new HarnessWindow({
-      location: { href: 'https://popup.example.com/', origin: 'https://popup.example.com' },
-      title: 'Popup',
-    });
     const popupChrome = env.createContentChrome(popupFrame);
-    initContentScript(popupWin as unknown as Window, popupChrome);
+    initContentScript(popupFrame.window! as unknown as Window, popupChrome);
 
     // Message sent before popup panel connects — should be buffered
-    popupWin.dispatchMessage({ type: 'early-msg' }, 'https://popup.example.com', popupWin);
+    popupFrame.window!.dispatchMessage({ type: 'early-msg' }, 'https://popup.example.com', popupFrame.window!);
 
     // Now connect a panel for the popup tab
     const { messages: popupMessages } = env.connectPanel(POPUP_TAB_ID);
