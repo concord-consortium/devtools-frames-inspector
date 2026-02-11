@@ -43,7 +43,6 @@ export default defineConfig(({ mode }) => ({
         'panel/field-info': resolve(__dirname, 'src/panel/field-info.ts'),
         // Standalone scripts
         'background': resolve(__dirname, 'src/background.ts'),
-        'background-core': resolve(__dirname, 'src/background-core.ts'),
         'content': resolve(__dirname, 'src/content.ts'),
         'devtools': resolve(__dirname, 'src/devtools.ts'),
       },
