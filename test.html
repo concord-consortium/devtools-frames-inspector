@@ -6,14 +6,14 @@
   <link rel="stylesheet" href="src/panel/panel.css">
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; }
-    #harness-layout { display: flex; height: 100%; }
-    #harness-sidebar { flex-shrink: 0; }
-    #panel-container { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: row; height: 100%; overflow: hidden; }
+    #harness-layout { display: flex; flex-direction: column; height: 100%; }
+    #harness-banner { flex-shrink: 0; }
+    #panel-container { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: row; overflow: hidden; }
   </style>
 </head>
 <body>
   <div id="harness-layout">
-    <div id="harness-sidebar"></div>
+    <div id="harness-banner"></div>
     <div id="panel-container">
       <div id="root"></div>
 
