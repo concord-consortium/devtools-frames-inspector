@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Frames Inspector — Test Harness</title>
+  <link rel="stylesheet" href="src/panel/panel.css">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    #harness-layout { display: flex; height: 100%; }
+    #harness-sidebar { flex-shrink: 0; }
+    #panel-container { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: row; height: 100%; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div id="harness-layout">
+    <div id="harness-sidebar"></div>
+    <div id="panel-container">
+      <div id="root"></div>
+
+      <!-- Same context menus as panel.html -->
+      <div class="column-menu" id="column-menu"></div>
+      <div class="cell-menu" id="cell-menu">
+        <div class="menu-item" id="filter-by-value">Filter by this value</div>
+      </div>
+      <div class="field-info-popup" id="field-info-popup"></div>
+    </div>
+  </div>
+
+  <script type="module" src="src/test/test-harness-entry.ts"></script>
+</body>
+</html>
