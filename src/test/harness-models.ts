@@ -237,15 +237,26 @@ export class HarnessWindow {
   }
 
   get parent(): HarnessWindow | CrossOriginWindowProxy {
-    return this._parentProxy ?? this._rawParent;
+    if (this._parentProxy) return this._parentProxy;
+    if (this._rawParent !== this) {
+      throw new Error('HarnessWindow has a parent but no proxy was set — call setParentProxy() first');
+    }
+    return this;
   }
 
   get opener(): HarnessWindow | CrossOriginWindowProxy | null {
-    return this._openerProxy ?? this._rawOpener;
+    if (this._openerProxy) return this._openerProxy;
+    if (this._rawOpener !== null) {
+      throw new Error('HarnessWindow has an opener but no proxy was set — call setOpenerProxy() first');
+    }
+    return null;
   }
 
   addEventListener(type: string, cb: (event: any) => void, _capture?: boolean): void {
-    if (type === 'message') this.messageListeners.push(cb);
+    if (type !== 'message') {
+      throw new Error(`HarnessWindow only supports 'message' listeners, got '${type}'`);
+    }
+    this.messageListeners.push(cb);
   }
 
   postMessage(data: any, _targetOrigin: string): void {
