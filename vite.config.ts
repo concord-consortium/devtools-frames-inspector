@@ -63,14 +63,12 @@ export default defineConfig(({ mode }) => ({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    exclude: ['e2e/**', 'node_modules/**'],
   },
 
-  // Dev server configuration (for future HMR with React)
+  // Dev server configuration
   server: {
     port: 5173,
     strictPort: true,
-    hmr: {
-      port: 5173,
-    },
   },
 }));

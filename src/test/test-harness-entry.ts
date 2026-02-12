@@ -75,11 +75,11 @@ async function init() {
   connect();
 
   const React = await import('react');
-  const { HarnessSidebar, HARNESS_EXAMPLES } = await import('./HarnessSidebar');
+  const { HarnessBanner, HARNESS_EXAMPLES } = await import('./HarnessBanner');
 
-  const sidebar = document.getElementById('harness-sidebar');
-  if (sidebar) {
-    createRoot(sidebar).render(React.createElement(HarnessSidebar));
+  const banner = document.getElementById('harness-banner');
+  if (banner) {
+    createRoot(banner).render(React.createElement(HarnessBanner));
   }
 
   const container = document.getElementById('root');
