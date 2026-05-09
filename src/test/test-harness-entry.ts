@@ -149,8 +149,10 @@ async function init() {
     // simulateReopenDevtools(): emulates closing and reopening DevTools after
     // an extension reload. Restores chrome.runtime.id, spins up a fresh SW
     // (new swStartupId), clears the panel invalidation flag, and reconnects.
-    // The bootstrap re-runs against frames whose documentElement still has
-    // the OLD sw-id attribute → action 'stale' → yellow banner appears.
+    // The new bootstrap probes via __messages_inspector_probe__; the previous
+    // content script's response listener (still attached to the frame window
+    // and holding the OLD swStartupId in closure) replies, the bootstrap
+    // detects the swId mismatch → action 'stale' → yellow banner appears.
     simulateReopenDevtools() {
       (window as any).chrome.runtime.id = 'test-harness';
       env.resetBgEvents();

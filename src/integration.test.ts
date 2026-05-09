@@ -558,7 +558,7 @@ describe('extension reload recovery', () => {
     expect(messages.some(m => m.type === 'stale-frame')).toBe(false);
   });
 
-  it('emits stale-frame to the panel when a previous swStartupId is found in the window', async () => {
+  it('emits stale-frame to the panel when a previous-lifetime probe response listener is found on the frame', async () => {
     const top = actions.createTab({ url: 'https://parent.example.com/', title: 'Parent' });
 
     // Simulate orphan: a probe response listener installed by a previous
