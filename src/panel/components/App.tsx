@@ -8,6 +8,7 @@ import { EndpointsView } from './EndpointsView';
 import { FieldInfoPopup } from './shared/FieldInfoPopup';
 import { Icon } from '../icons/Icon';
 import { EndpointsIcon } from '../icons/EndpointsIcon';
+import { Banners } from './shared/Banners';
 
 interface SidebarItemProps {
   view: ViewType;
@@ -114,13 +115,16 @@ const SettingsView = observer(() => (
 ));
 
 export const App = observer(() => (
-  <>
-    <Sidebar />
-    <div className="view-container">
-      <LogView />
-      <EndpointsView />
-      <SettingsView />
+  <div className="app-root">
+    <Banners />
+    <div className="app-body">
+      <Sidebar />
+      <div className="view-container">
+        <LogView />
+        <EndpointsView />
+        <SettingsView />
+      </div>
     </div>
     <FieldInfoPopup />
-  </>
+  </div>
 ));

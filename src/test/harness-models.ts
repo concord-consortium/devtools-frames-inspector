@@ -152,11 +152,32 @@ export interface HarnessWindowOptions {
   title?: string;
 }
 
+export interface HarnessDocumentElement {
+  getAttribute(name: string): string | null;
+  setAttribute(name: string, value: string): void;
+}
+
+function createDocumentElementMock(): HarnessDocumentElement {
+  const attrs = new Map<string, string>();
+  return {
+    getAttribute(name: string): string | null {
+      return attrs.has(name) ? attrs.get(name)! : null;
+    },
+    setAttribute(name: string, value: string): void {
+      attrs.set(name, value);
+    },
+  };
+}
+
 export class HarnessWindow {
   location: { href: string; origin: string };
   top: HarnessWindow;
-  document: { title: string; querySelector(selector: string): Element | null; querySelectorAll(selector: string): NodeListOf<Element> };
-  __postmessage_devtools_content__?: boolean;
+  document: {
+    title: string;
+    documentElement: HarnessDocumentElement;
+    querySelector(selector: string): Element | null;
+    querySelectorAll(selector: string): NodeListOf<Element>;
+  };
 
   /** Mirrors window.origin — shorthand for location.origin */
   get origin(): string { return this.location.origin; }
@@ -167,6 +188,9 @@ export class HarnessWindow {
   private _openerProxy: CrossOriginWindowProxy | null = null;
 
   private messageListeners: ((event: any) => void)[] = [];
+  // Listeners for non-'message' event types (e.g. probe events). Keyed by
+  // type name. Dispatched synchronously by dispatchEvent.
+  private eventListeners: Map<string, Array<(event: any) => void>> = new Map();
   // Detached div — never appended to the document.
   // If you do the iframe src URLs will actually load.
   private _iframeContainer = document.createElement('div');
@@ -183,6 +207,7 @@ export class HarnessWindow {
     const container = this._iframeContainer;
     this.document = {
       title: options.title ?? '',
+      documentElement: createDocumentElementMock(),
       querySelector(selector: string) {
         return container.querySelector(selector);
       },
@@ -203,10 +228,42 @@ export class HarnessWindow {
   }
 
   addEventListener(type: string, cb: (event: any) => void, _capture?: boolean): void {
-    if (type !== 'message') {
-      throw new Error(`HarnessWindow only supports 'message' listeners, got '${type}'`);
+    if (type === 'message') {
+      this.messageListeners.push(cb);
+      return;
     }
-    this.messageListeners.push(cb);
+    if (!this.eventListeners.has(type)) this.eventListeners.set(type, []);
+    this.eventListeners.get(type)!.push(cb);
+  }
+
+  removeEventListener(type: string, cb: (event: any) => void, _capture?: boolean): void {
+    if (type === 'message') {
+      this.messageListeners = this.messageListeners.filter(l => l !== cb);
+      return;
+    }
+    const list = this.eventListeners.get(type);
+    if (!list) return;
+    this.eventListeners.set(type, list.filter(l => l !== cb));
+  }
+
+  /**
+   * Dispatch a non-'message' event synchronously to all listeners registered
+   * for the matching type. Used by the bootstrap probe protocol — DOM events
+   * propagate synchronously across isolated worlds in real Chrome, so the
+   * harness models that by invoking listeners inline (no setTimeout).
+   * Listener errors are swallowed so one failing listener does not block
+   * others.
+   */
+  dispatchEvent(event: any): boolean {
+    const type = event?.type;
+    if (!type) return true;
+    const listeners = this.eventListeners.get(type);
+    if (listeners) {
+      for (const cb of listeners.slice()) {
+        try { cb(event); } catch { /* swallow listener errors */ }
+      }
+    }
+    return true;
   }
 
   postMessage(data: any, _targetOrigin: string): void {

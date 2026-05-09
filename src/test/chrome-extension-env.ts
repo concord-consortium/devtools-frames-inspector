@@ -22,15 +22,20 @@ export { HarnessTab, HarnessFrame, HarnessDocument, HarnessWindow } from './harn
 // ---------------------------------------------------------------------------
 
 export class ChromeExtensionEnv {
-  // Events for the background service worker's listener registrations
-  readonly bgOnConnect = new ChromeEvent<(port: any) => void>();
-  readonly bgRuntimeOnMessage = new ChromeEvent<(msg: any, sender: any, sendResponse: any) => void>();
-  readonly bgOnCommitted = new ChromeEvent<(details: { tabId: number; frameId: number; url: string; transitionType: string; transitionQualifiers: string[] }) => void>();
-  readonly bgOnCreatedNavTarget = new ChromeEvent<(details: any) => void>();
-  readonly bgOnTabRemoved = new ChromeEvent<(tabId: number) => void>();
+  // Events for the background service worker's listener registrations.
+  // Not `readonly` because resetBgEvents() reassigns them when simulating
+  // a service-worker restart (e.g., the harness's "Reload extension" button).
+  bgOnConnect = new ChromeEvent<(port: any) => void>();
+  bgRuntimeOnMessage = new ChromeEvent<(msg: any, sender: any, sendResponse: any) => void>();
+  bgOnCommitted = new ChromeEvent<(details: { tabId: number; frameId: number; url: string; transitionType: string; transitionQualifiers: string[] }) => void>();
+  bgOnCreatedNavTarget = new ChromeEvent<(details: any) => void>();
+  bgOnTabRemoved = new ChromeEvent<(tabId: number) => void>();
 
   /** Mock storage data — returned by chrome.storage.local.get */
   storageData: Record<string, any> = {};
+
+  /** Mock session storage — returned by chrome.storage.session.get */
+  sessionStorageData: Record<string, any> = {};
 
   // Tab/frame registry using harness models
   private tabs = new Map<number, HarnessTab>();
@@ -57,6 +62,23 @@ export class ChromeExtensionEnv {
   }
 
   /**
+   * Reset all background-side event channels. Used by the harness to simulate
+   * an SW restart: the next initBackgroundScript() call won't accumulate
+   * listeners on top of the previous SW's. Tabs already registered are re-wired
+   * to the new bgOnCommitted so navigation events still flow.
+   */
+  resetBgEvents(): void {
+    this.bgOnConnect = new ChromeEvent<(port: any) => void>();
+    this.bgRuntimeOnMessage = new ChromeEvent<(msg: any, sender: any, sendResponse: any) => void>();
+    this.bgOnCommitted = new ChromeEvent<(details: { tabId: number; frameId: number; url: string; transitionType: string; transitionQualifiers: string[] }) => void>();
+    this.bgOnCreatedNavTarget = new ChromeEvent<(details: any) => void>();
+    this.bgOnTabRemoved = new ChromeEvent<(tabId: number) => void>();
+    for (const tab of this.tabs.values()) {
+      tab.onCommitted = this.bgOnCommitted;
+    }
+  }
+
+  /**
    * Creates the chrome API mock for the background service worker.
    * Pass to initBackgroundScript() directly.
    */
@@ -68,8 +90,7 @@ export class ChromeExtensionEnv {
         onMessage: env.bgRuntimeOnMessage,
       },
       scripting: {
-        async executeScript(options: { target: { tabId: number; frameIds?: number[]; allFrames?: boolean } }) {
-          if (!env._initContentScript) return [];
+        async executeScript(options: { target: { tabId: number; frameIds?: number[]; allFrames?: boolean }; files?: string[]; func?: (...args: any[]) => any; args?: any[] }) {
           const tab = env.tabs.get(options.target.tabId);
           if (!tab) return [];
 
@@ -84,12 +105,36 @@ export class ChromeExtensionEnv {
             return [];
           }
 
-          for (const frame of frames) {
-            if (frame.window) {
-              env._initContentScript(
+          if (options.func) {
+            // Simulate Chrome injecting a function into the page's isolated
+            // world. Real Chrome serializes options.func via toString() and
+            // calls it with options.args inside the isolated world, where
+            // bare `self`/`window` references resolve to the page globals.
+            // The harness can't change globalThis.window (non-configurable
+            // getter in real browsers), so the convention is: bootstrap-style
+            // funcs accept optional trailing overrides for `self` and
+            // `window` and fall back to the real globals when absent.
+            // We pass the frame's window for both override slots — they are
+            // conceptually the same in the isolated world.
+            for (const frame of frames) {
+              if (!frame.window) continue;
+              options.func.apply(null, [
+                ...(options.args ?? []),
                 frame.window,
-                env.createContentChrome(frame),
-              );
+                frame.window,
+              ]);
+            }
+            return [];
+          }
+
+          if (options.files && env._initContentScript) {
+            for (const frame of frames) {
+              if (frame.window) {
+                env._initContentScript(
+                  frame.window,
+                  env.createContentChrome(frame),
+                );
+              }
             }
           }
           return [];
@@ -169,6 +214,20 @@ export class ChromeExtensionEnv {
               }
             }
             return Promise.resolve(result);
+          },
+        },
+        session: {
+          get(keys: string | string[]) {
+            const keyArr = Array.isArray(keys) ? keys : [keys];
+            const result: Record<string, any> = {};
+            for (const key of keyArr) {
+              if (key in env.sessionStorageData) result[key] = env.sessionStorageData[key];
+            }
+            return Promise.resolve(result);
+          },
+          set(items: Record<string, any>) {
+            Object.assign(env.sessionStorageData, items);
+            return Promise.resolve();
           },
         },
       },

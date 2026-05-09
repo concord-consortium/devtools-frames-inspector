@@ -29,6 +29,10 @@ class PanelStore {
   isRecording = true;
   preserveLog = false;
 
+  // Reload-recovery state
+  extensionContextInvalidated = false;
+  staleFrameIds = new Set<number>();
+
   // UI state
   currentView: ViewType = 'log';
   activeDetailTab: DetailTabType = 'data';
@@ -422,6 +426,26 @@ class PanelStore {
 
   buildFrameTree(): Frame[] {
     return frameStore.hierarchyRoots;
+  }
+
+  setExtensionContextInvalidated(value: boolean): void {
+    this.extensionContextInvalidated = value;
+  }
+
+  addStaleFrame(frameId: number): void {
+    this.staleFrameIds.add(frameId);
+  }
+
+  clearStaleFrame(frameId: number): void {
+    this.staleFrameIds.delete(frameId);
+  }
+
+  clearStaleFrames(): void {
+    this.staleFrameIds.clear();
+  }
+
+  get hasStaleFrames(): boolean {
+    return this.staleFrameIds.size > 0;
   }
 }
 

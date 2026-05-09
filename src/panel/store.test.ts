@@ -91,3 +91,34 @@ describe('store.navigateToNodeMessages', () => {
     expect(store.filterText).toBe('source.sourceId:win-abc');
   });
 });
+
+describe('store reload-recovery flags', () => {
+  beforeEach(() => {
+    store.setExtensionContextInvalidated(false);
+    store.clearStaleFrames();
+  });
+
+  it('extensionContextInvalidated defaults to false and can be set', () => {
+    expect(store.extensionContextInvalidated).toBe(false);
+    store.setExtensionContextInvalidated(true);
+    expect(store.extensionContextInvalidated).toBe(true);
+  });
+
+  it('addStaleFrame and clearStaleFrame manage the set', () => {
+    store.addStaleFrame(1);
+    store.addStaleFrame(3);
+    expect(Array.from(store.staleFrameIds).sort()).toEqual([1, 3]);
+
+    store.clearStaleFrame(1);
+    expect(Array.from(store.staleFrameIds)).toEqual([3]);
+
+    store.clearStaleFrames();
+    expect(store.staleFrameIds.size).toBe(0);
+  });
+
+  it('hasStaleFrames is true when set is non-empty', () => {
+    expect(store.hasStaleFrames).toBe(false);
+    store.addStaleFrame(2);
+    expect(store.hasStaleFrames).toBe(true);
+  });
+});

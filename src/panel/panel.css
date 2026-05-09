@@ -19,7 +19,7 @@ body {
 
 #root {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   flex: 1;
   overflow: hidden;
 }
@@ -1005,4 +1005,43 @@ body {
 
 .log-element-btn + .close-detail-btn {
   margin-left: 0;
+}
+
+.banners {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.banner {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid #cacdd1;
+}
+
+.banner-error {
+  background: #fce8e6;
+  color: #5a1e16;
+  border-bottom-color: #f4b1ab;
+}
+
+.banner-warning {
+  background: #fef7e0;
+  color: #5b3f00;
+  border-bottom-color: #f9d770;
+}
+
+.app-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-body {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }

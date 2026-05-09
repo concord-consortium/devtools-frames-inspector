@@ -107,4 +107,39 @@ export interface PostMessageCapturedMessage {
   payload: RawCapturedMessage;
 }
 
-export type ContentToBackgroundMessage = PostMessageCapturedMessage;
+export type ContentToBackgroundMessage =
+  | PostMessageCapturedMessage
+  | ContentScriptReadyMessage
+  | StaleFrameMessage;
+
+// Window expando set by the bootstrap and read by the content script (same
+// isolated world). The content script uses it to identify itself when
+// responding to probes from a future re-injection.
+export const SW_ID_KEY = '__pm_devtools_sw_id__';
+
+// Custom DOM events used by the bootstrap to detect orphan content scripts
+// from a previous extension lifetime. DOM events propagate synchronously
+// across isolated worlds, so the orphan's response listener fires during
+// the bootstrap's own dispatchEvent call. Both event names are namespaced.
+export const PROBE_EVENT_NAME = '__messages_inspector_probe__';
+export const PROBE_RESPONSE_EVENT_NAME = '__messages_inspector_probe_response__';
+
+// __pm_devtools_inject_action__ is written by the bootstrap and read by the
+// content script. Tells the content script what to do this injection.
+export const INJECT_ACTION_KEY = '__pm_devtools_inject_action__';
+
+export type InjectAction = 'init' | 'skip' | 'stale';
+
+// Storage key for swStartupId persisted in chrome.storage.session.
+export const SW_STARTUP_ID_STORAGE_KEY = 'swStartupId';
+
+// Content script → background: this content script just finished fresh init.
+export interface ContentScriptReadyMessage {
+  type: 'content-script-ready';
+}
+
+// Content script → background: a stale orphan from a previous extension
+// version is still attached to this frame; this fresh injection bailed.
+export interface StaleFrameMessage {
+  type: 'stale-frame';
+}

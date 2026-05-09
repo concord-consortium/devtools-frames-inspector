@@ -8,6 +8,7 @@ import { initBackgroundScript } from '../background-core';
 import { initContentScript } from '../content-core';
 import { HarnessRuntime } from './harness-runtime';
 import { HarnessActions } from './harness-actions';
+import { SW_STARTUP_ID_STORAGE_KEY } from '../types';
 import { autorun } from 'mobx';
 
 // ---------------------------------------------------------------------------
@@ -38,6 +39,7 @@ const childWin = childFrame.window!;
     inspectedWindow: { tabId: TAB_ID },
   },
   runtime: {
+    id: 'test-harness',
     connect(options: { name: string }) {
       const [panelPort, bgPort] = createPortPair(options.name);
       env.bgOnConnect.fire(bgPort);
@@ -66,6 +68,20 @@ const childWin = childFrame.window!;
 };
 
 // ---------------------------------------------------------------------------
+// Simulation phase pub/sub — drives the HarnessBanner button label.
+// ---------------------------------------------------------------------------
+
+type SimulationPhase = 'normal' | 'reloaded';
+let simulationPhase: SimulationPhase = 'normal';
+const phaseListeners = new Set<(p: SimulationPhase) => void>();
+function notifyPhaseChange() {
+  for (const cb of phaseListeners) cb(simulationPhase);
+}
+
+// Captured by init() so simulateReopenDevtools can re-trigger panel connection.
+let connectFn: () => void = () => {};
+
+// ---------------------------------------------------------------------------
 // 3. Dynamically import and render the panel
 // ---------------------------------------------------------------------------
 
@@ -77,30 +93,12 @@ async function init() {
   const { createRoot } = await import('react-dom/client');
 
   await store.loadPersistedState();
-  connect();
-
-  const React = await import('react');
-  const { HarnessBanner, HARNESS_EXAMPLES } = await import('./HarnessBanner');
-
-  const banner = document.getElementById('harness-banner');
-  if (banner) {
-    createRoot(banner).render(React.createElement(HarnessBanner));
-  }
-
-  const { HarnessSidebar } = await import('./HarnessSidebar');
-
-  const sidebar = document.getElementById('hierarchy-sidebar');
-  if (sidebar) {
-    createRoot(sidebar).render(React.createElement(HarnessSidebar, { runtime }));
-  }
-
-  const container = document.getElementById('root');
-  if (container) {
-    createRoot(container).render(React.createElement(App));
-  }
+  connectFn = connect;
+  connectFn();
 
   // ---------------------------------------------------------------------------
   // 4. Expose harness API on window for console / Playwright
+  //    (assigned BEFORE rendering so HarnessBanner can subscribe in useEffect)
   // ---------------------------------------------------------------------------
 
   (window as any).harness = {
@@ -132,7 +130,70 @@ async function init() {
 
     // Frame store for diagnostics
     frameStore,
+
+    // -- Simulation: reload-recovery flow --
+    //
+    // simulateExtensionReload(): emulates clicking "Reload" on the extension
+    // card in chrome://extensions/. Drops chrome.runtime.id, clears the SW
+    // session-storage id, and flips the panel's invalidated flag (the panel
+    // would set this itself on its next reconnect attempt — doing it here
+    // avoids the 1s setTimeout retry delay).
+    simulateExtensionReload() {
+      delete env.sessionStorageData[SW_STARTUP_ID_STORAGE_KEY];
+      (window as any).chrome.runtime.id = undefined;
+      store.setExtensionContextInvalidated(true);
+      simulationPhase = 'reloaded';
+      notifyPhaseChange();
+    },
+
+    // simulateReopenDevtools(): emulates closing and reopening DevTools after
+    // an extension reload. Restores chrome.runtime.id, spins up a fresh SW
+    // (new swStartupId), clears the panel invalidation flag, and reconnects.
+    // The new bootstrap probes via __messages_inspector_probe__; the previous
+    // content script's response listener (still attached to the frame window
+    // and holding the OLD swStartupId in closure) replies, the bootstrap
+    // detects the swId mismatch → action 'stale' → yellow banner appears.
+    simulateReopenDevtools() {
+      (window as any).chrome.runtime.id = 'test-harness';
+      env.resetBgEvents();
+      initBackgroundScript(env.createBackgroundChrome());
+      store.setExtensionContextInvalidated(false);
+      connectFn();
+      simulationPhase = 'normal';
+      notifyPhaseChange();
+    },
+
+    getSimulationPhase: () => simulationPhase,
+    addPhaseChangeListener(cb: (p: SimulationPhase) => void) {
+      phaseListeners.add(cb);
+      return () => phaseListeners.delete(cb);
+    },
   };
+
+  // ---------------------------------------------------------------------------
+  // 5. Render UI (must happen after window.harness is set so HarnessBanner's
+  //    useEffect can subscribe to phase changes on first mount)
+  // ---------------------------------------------------------------------------
+
+  const React = await import('react');
+  const { HarnessBanner, HARNESS_EXAMPLES } = await import('./HarnessBanner');
+
+  const banner = document.getElementById('harness-banner');
+  if (banner) {
+    createRoot(banner).render(React.createElement(HarnessBanner));
+  }
+
+  const { HarnessSidebar } = await import('./HarnessSidebar');
+
+  const sidebar = document.getElementById('hierarchy-sidebar');
+  if (sidebar) {
+    createRoot(sidebar).render(React.createElement(HarnessSidebar, { runtime }));
+  }
+
+  const container = document.getElementById('root');
+  if (container) {
+    createRoot(container).render(React.createElement(App));
+  }
 
   console.log(
     '%c Frames Inspector Test Harness ',

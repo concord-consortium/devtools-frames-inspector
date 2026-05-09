@@ -523,3 +523,114 @@ describe('automatic frame registration', () => {
     expect(popupPings).toHaveLength(1);
   });
 });
+
+describe('extension reload recovery', () => {
+  let env: ChromeExtensionEnv;
+  let runtime: HarnessRuntime;
+  let actions: HarnessActions;
+
+  beforeEach(() => {
+    env = new ChromeExtensionEnv(initContentScript);
+    env.storageData.enableFrameRegistration = false;
+    initBackgroundScript(env.createBackgroundChrome());
+    runtime = new HarnessRuntime(env);
+    actions = new HarnessActions(runtime);
+  });
+
+  // Simulate an orphan content script from a previous extension lifetime by
+  // installing a probe response listener on the harness window that echoes
+  // the supplied (older) swId. Mirrors what an actual orphan would do.
+  function simulateOrphan(win: any, swId: string): void {
+    win.addEventListener('__messages_inspector_probe__', (e: any) => {
+      const nonce = e?.detail?.nonce;
+      if (typeof nonce !== 'string') return;
+      win.dispatchEvent(new CustomEvent('__messages_inspector_probe_response__', {
+        detail: { nonce, swId },
+      }));
+    });
+  }
+
+  it('does not flag stale frames on the very first injection', async () => {
+    const top = actions.createTab({ url: 'https://parent.example.com/', title: 'Parent' });
+    const { messages } = env.connectPanel(top.tab.id);
+    await flushPromises();
+
+    expect(messages.some(m => m.type === 'stale-frame')).toBe(false);
+  });
+
+  it('emits stale-frame to the panel when a previous-lifetime probe response listener is found on the frame', async () => {
+    const top = actions.createTab({ url: 'https://parent.example.com/', title: 'Parent' });
+
+    // Simulate orphan: a probe response listener installed by a previous
+    // extension lifetime is still attached to the top frame's window.
+    simulateOrphan(top.window, 'PREVIOUS-LIFETIME');
+
+    const { messages } = env.connectPanel(top.tab.id);
+    await flushPromises();
+
+    const stale = messages.filter(m => m.type === 'stale-frame');
+    expect(stale).toHaveLength(1);
+    expect(stale[0].frameId).toBe(0);
+  });
+
+  it('clears stale-frame after a fresh content-script-ready arrives for the frame', async () => {
+    const top = actions.createTab({ url: 'https://parent.example.com/', title: 'Parent' });
+    simulateOrphan(top.window, 'PREVIOUS-LIFETIME');
+
+    const { messages } = env.connectPanel(top.tab.id);
+    await flushPromises();
+
+    expect(messages.filter(m => m.type === 'stale-frame')).toHaveLength(1);
+
+    // Simulate page reload: navigation creates a fresh window, then re-inject runs.
+    actions.navigate(top, { url: 'https://parent.example.com/', title: 'Parent' });
+    await flushPromises();
+
+    const cleared = messages.filter(m => m.type === 'stale-frame-cleared');
+    expect(cleared).toHaveLength(1);
+    expect(cleared[0].frameId).toBe(0);
+  });
+
+  it('reuses the same swStartupId across SW restarts (no false stale)', async () => {
+    const top = actions.createTab({ url: 'https://parent.example.com/', title: 'Parent' });
+    env.connectPanel(top.tab.id);
+    await flushPromises();
+
+    // Simulate SW idle restart: re-init background-core against the same env.
+    // sessionStorageData persists across this restart; storageData also persists.
+    initBackgroundScript(env.createBackgroundChrome());
+    const second = env.connectPanel(top.tab.id);
+    await flushPromises();
+
+    expect(second.messages.some(m => m.type === 'stale-frame')).toBe(false);
+  });
+
+  it('clears stale entries for all frames in a tab when top frame navigates (multi-frame)', async () => {
+    const top = actions.createTab({ url: 'https://parent.example.com/', title: 'Parent' });
+    const child = actions.addIframe(top, { url: 'https://child.example.com/', iframeId: 'child-iframe', title: 'Child' });
+
+    // Simulate orphan: BOTH top frame and child iframe have probe response
+    // listeners from a previous extension lifetime.
+    simulateOrphan(top.window, 'PREVIOUS-LIFETIME-TOP');
+    simulateOrphan(child.window, 'PREVIOUS-LIFETIME-CHILD');
+
+    const { messages } = env.connectPanel(top.tab.id);
+    await flushPromises();
+
+    const stale = messages.filter(m => m.type === 'stale-frame');
+    const staleFrameIds = stale.map(m => m.frameId).sort();
+    expect(staleFrameIds).toEqual([0, child.frameId].sort());
+
+    // Reload only the top frame. In the harness, navigate(top, ...) fires onCommitted
+    // for the top frame and creates a fresh window for it. The child iframe is left
+    // in place by the harness, but in production a top-frame reload destroys all
+    // subframes — the background-core code clears all stale entries for the tab
+    // regardless of whether the harness models the subframe destruction.
+    actions.navigate(top, { url: 'https://parent.example.com/', title: 'Parent' });
+    await flushPromises();
+
+    const cleared = messages.filter(m => m.type === 'stale-frame-cleared');
+    const clearedFrameIds = cleared.map(m => m.frameId).sort();
+    expect(clearedFrameIds).toEqual([0, child.frameId].sort());
+  });
+});

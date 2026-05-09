@@ -2,17 +2,15 @@
 // In production, content.ts calls initContentScript(window, chrome).
 // In tests, call with mock window and chrome objects to simulate multiple content scripts.
 
-import { REGISTRATION_MESSAGE_TYPE, BackgroundToContentMessage, IframeElementInfo, RawCapturedMessage, FrameInfoResponse, OpenerInfo, PostMessageCapturedMessage } from './types';
-
-declare global {
-  interface Window {
-    __postmessage_devtools_content__?: boolean;
-  }
-}
+import {
+  REGISTRATION_MESSAGE_TYPE, BackgroundToContentMessage, IframeElementInfo,
+  RawCapturedMessage, FrameInfoResponse, OpenerInfo, PostMessageCapturedMessage,
+  ContentToBackgroundMessage, INJECT_ACTION_KEY, SW_ID_KEY, InjectAction,
+  PROBE_EVENT_NAME, PROBE_RESPONSE_EVENT_NAME,
+} from './types';
 
 /** Minimal window interface needed by the content script */
 export interface ContentWindow {
-  __postmessage_devtools_content__?: boolean;
   parent: any;
   top: any;
   opener: any;
@@ -24,12 +22,15 @@ export interface ContentWindow {
   };
   frames: { length: number; [index: number]: any };
   addEventListener(type: string, callback: (event: any) => void, capture?: boolean): void;
+  dispatchEvent(event: any): boolean;
+  __pm_devtools_inject_action__?: 'init' | 'skip' | 'stale';
+  __pm_devtools_sw_id__?: string;
 }
 
 /** Minimal chrome API interface needed by the content script */
 export interface ContentChrome {
   runtime: {
-    sendMessage(message: PostMessageCapturedMessage): void;
+    sendMessage(message: ContentToBackgroundMessage): void;
     onMessage: {
       addListener(callback: (
         message: BackgroundToContentMessage,
@@ -41,9 +42,34 @@ export interface ContentChrome {
 }
 
 export function initContentScript(win: ContentWindow, chrome: ContentChrome): void {
-  // Guard against multiple injections
-  if (win.__postmessage_devtools_content__) return;
-  win.__postmessage_devtools_content__ = true;
+  // Read and consume the action set by the bootstrap injection step.
+  // Default to 'init' so direct test calls (without a bootstrap) still work.
+  const action: InjectAction = win[INJECT_ACTION_KEY] as InjectAction ?? 'init';
+  delete win[INJECT_ACTION_KEY];
+
+  if (action === 'skip') return;
+
+  if (action === 'stale') {
+    chrome.runtime.sendMessage({ type: 'stale-frame' });
+    return;
+  }
+  // action === 'init': fall through to fresh init.
+
+  const swId = win[SW_ID_KEY];
+
+  // Probe listener: future re-injections (in the same or a later extension
+  // lifetime) detect this content script's existence by dispatching a probe
+  // event. We respond with our own swId so the new bootstrap can decide
+  // whether we are an orphan from a previous lifetime. Once this content
+  // script becomes an orphan (extension reload), this closure still holds
+  // the OLD swId — exactly what the new bootstrap needs to detect mismatch.
+  win.addEventListener(PROBE_EVENT_NAME, (event: any) => {
+    const nonce = event?.detail?.nonce;
+    if (typeof nonce !== 'string') return;
+    win.dispatchEvent(new CustomEvent(PROBE_RESPONSE_EVENT_NAME, {
+      detail: { nonce, swId },
+    }));
+  });
 
   const sourceEntries = new WeakMap<object, { sourceId: string; type: string }>();
 
@@ -241,4 +267,7 @@ export function initContentScript(win: ContentWindow, chrome: ContentChrome): vo
     }
     return true; // Keep channel open for async response
   });
+
+  // Tell background this fresh injection succeeded — used to clear stale-frame state.
+  chrome.runtime.sendMessage({ type: 'content-script-ready' });
 }

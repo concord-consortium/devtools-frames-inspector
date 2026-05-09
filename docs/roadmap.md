@@ -12,7 +12,6 @@
 
 - update documentation on matching up iframes with frameIds, the issue linked in the doc is nuanced. It sounds like it will not be fixed for a while, but perhaps a new issue that provides the documentId would be something better.
 - improve UI to better match the rest of the dev tools styling
-- show a banner when the extension is reloaded/updated while the panel is open, telling the user to reopen DevTools
 - update frame id syntax so it is more liqe friendly, perhaps just tX.fY
 - create a website for the extension, could just be github.io
 - deploy test harness page, and manual testing page to this website
@@ -22,6 +21,7 @@
 - automatic verification of the test harness: create a new extension that can be run inside of playwright. Then have a test set of webpages, that playwright can drive to generate the same events and behavior as the test-harness. This verification can be run in GitHub actions to make sure new versions of Chrome behave the same way as what we are expecting. The hierarchy actions are designed so that we know what we need to verify.
 
 # Version 1.1
+- submit to [awesome-chrome-devtools](https://github.com/ChromeDevTools/awesome-chrome-devtools) for credibility and discoverability
 - import button
 - find a more precise way to know when we can send the registration messages we could try sending them every 10ms as a test and also record various event times to see if we can figure out which event has to fire before the registration message goes through.
 - consider a mixed tree and table hierarchy view. This would let us show more info about each iframe and document. However with the different types it isn't clear how to do this.
