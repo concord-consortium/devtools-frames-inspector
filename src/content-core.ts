@@ -41,6 +41,34 @@ export interface ContentChrome {
   };
 }
 
+// Generate a CSS selector path for an element. Uses the attribute-selector
+// form (`iframe[id="..."]`) for ids rather than `iframe#<escaped-id>` because
+// the latter requires CSS identifier escaping (e.g. `iframe#\31 foo` for an
+// id starting with a digit). The escaped form is a footgun when copy-pasted
+// into JS source — `\3` becomes an octal escape and the selector breaks.
+export function getDomPath(element: Element | null): string {
+  const parts: string[] = [];
+  while (element && element.nodeType === Node.ELEMENT_NODE) {
+    let selector = element.nodeName.toLowerCase();
+    if (element.id) {
+      const escaped = element.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      selector += `[id="${escaped}"]`;
+      parts.unshift(selector);
+      break; // id is unique, stop here
+    }
+    // Position among same-type siblings
+    let sibling: Element | null = element;
+    let nth = 1;
+    while ((sibling = sibling.previousElementSibling)) {
+      if (sibling.nodeName === element.nodeName) nth++;
+    }
+    if (nth > 1) selector += ':nth-of-type(' + nth + ')';
+    parts.unshift(selector);
+    element = element.parentElement;
+  }
+  return parts.join(' > ');
+}
+
 export function initContentScript(win: ContentWindow, chrome: ContentChrome): void {
   // Read and consume the action set by the bootstrap injection step.
   // Default to 'init' so direct test calls (without a bootstrap) still work.
@@ -72,29 +100,6 @@ export function initContentScript(win: ContentWindow, chrome: ContentChrome): vo
   });
 
   const sourceEntries = new WeakMap<object, { sourceId: string; type: string }>();
-
-  // Generate a CSS selector path for an element
-  function getDomPath(element: Element | null): string {
-    const parts: string[] = [];
-    while (element && element.nodeType === Node.ELEMENT_NODE) {
-      let selector = element.nodeName.toLowerCase();
-      if (element.id) {
-        selector += '#' + CSS.escape(element.id);
-        parts.unshift(selector);
-        break; // id is unique, stop here
-      }
-      // Position among same-type siblings
-      let sibling: Element | null = element;
-      let nth = 1;
-      while ((sibling = sibling.previousElementSibling)) {
-        if (sibling.nodeName === element.nodeName) nth++;
-      }
-      if (nth > 1) selector += ':nth-of-type(' + nth + ')';
-      parts.unshift(selector);
-      element = element.parentElement;
-    }
-    return parts.join(' > ');
-  }
 
   // Generate unique ID (12 chars = 72 bits of entropy)
   function generateId(): string {
